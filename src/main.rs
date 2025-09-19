@@ -1,21 +1,33 @@
 use std::env;
+use std::fmt::Display;
 use std::fs;
 use std::path::Path;
 use std::process::exit;
 
-struct PwFile {
+struct EncryptedFile {
     path: String,
     cypher_data: Vec<u8>,
 }
 
-struct CryptoHeader {
+struct PwHeader {
     master_iv: Vec<u8>,
     iv: Vec<u8>,
     cypher_key: Vec<u8>,
 }
 
-impl CryptoHeader {
-    fn new(raw_data: &Vec<u8>) -> Result<CryptoHeader, String> {
+impl Display for PwHeader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let str = format!("Master IV: {:02X?} (len {})\n\
+                IV: {:02X?} (len {})\n\
+                Key {:02X?} (len {})",
+                          self.master_iv, self.iv.len(), self.iv, self.iv.len(),
+                          self.cypher_key, self.cypher_key.len());
+        write!(f, "{}", str)
+    }
+}
+
+impl PwHeader {
+    fn new(raw_data: &Vec<u8>) -> Result<PwHeader, String> {
         if raw_data.len() < 12 {
             return Err(String::from("Expected 12 bytes of header"));
         }
@@ -32,27 +44,19 @@ impl CryptoHeader {
         let master_iv = raw_data[12..12 + master_iv_len].to_vec();
         let iv = raw_data[12 + master_iv_len..12 + master_iv_len + iv_len].to_vec();
         let cypher_key = raw_data[12 + master_iv_len + iv_len..].to_vec();
-        Ok(CryptoHeader{master_iv, iv, cypher_key})
-    }
-
-    fn to_string(&self) -> String {
-        format!("Master IV: {:02X?} (len {})\n\
-                IV: {:02X?} (len {})\n\
-                Key {:02X?} (len {})",
-                self.master_iv, self.iv.len(), self.iv, self.iv.len(),
-                self.cypher_key, self.cypher_key.len())
+        Ok(PwHeader {master_iv, iv, cypher_key})
     }
 }
 
-impl PwFile {
-    fn new(path: String) -> Result<PwFile, String> {
+impl EncryptedFile {
+    fn new(path: String) -> Result<EncryptedFile, String> {
         if !Path::new(&path).exists() {
             return Err(String::from("Path does not exist"));
         }
 
         let raw_data = fs::read(&path);
         match raw_data {
-            Ok(data) => Ok(PwFile {
+            Ok(data) => Ok(EncryptedFile {
                 path,
                 cypher_data: data,
             }),
@@ -78,7 +82,7 @@ fn main() {
         exit(1);
     }
 
-    let pw_file = match PwFile::new(file.to_string()) {
+    let pw_file = match EncryptedFile::new(file.to_string()) {
         Ok(pw_file) => pw_file,
         Err(msg) => {
             println!("{}", msg);
@@ -86,7 +90,7 @@ fn main() {
         },
     };
 
-    let header = match CryptoHeader::new(&pw_file.cypher_data) {
+    let header = match PwHeader::new(&pw_file.cypher_data) {
         Ok(header) => header,
         Err(msg) => {
             println!("{}", msg);
@@ -94,5 +98,5 @@ fn main() {
         }
     };
 
-    println!("{}", header.to_string());
+    println!("{}", header);
 }
