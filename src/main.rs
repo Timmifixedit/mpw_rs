@@ -43,7 +43,8 @@ impl PwHeader {
 
         let master_iv = raw_data[12..12 + master_iv_len].to_vec();
         let iv = raw_data[12 + master_iv_len..12 + master_iv_len + iv_len].to_vec();
-        let cypher_key = raw_data[12 + master_iv_len + iv_len..].to_vec();
+        let cypher_key =
+            raw_data[12 + master_iv_len + iv_len..12 + master_iv_len + iv_len + key_len].to_vec();
         Ok(PwHeader {master_iv, iv, cypher_key})
     }
 }
