@@ -12,6 +12,7 @@ struct EncryptedFile {
 struct VaultData {
     iv: Vec<u8>,
     cypher_master_key: Vec<u8>,
+    salt: Vec<u8>
 }
 
 struct PwHeader {
@@ -37,8 +38,10 @@ impl Display for VaultData {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let str = format!(
             "IV: {:02X?} (len {})\n\
-             Key {:02X?} (len {})",
-            self.iv, self.iv.len(), self.cypher_master_key, self.cypher_master_key.len());
+             Key {:02X?} (len {})\n\
+             Salt {:02X?} (len {})",
+            self.iv, self.iv.len(), self.cypher_master_key, self.cypher_master_key.len(),
+            self.salt, self.salt.len());
         write!(f, "{}", str)
     }
 }
@@ -62,9 +65,24 @@ impl VaultData {
 
         let iv = raw_data[8..8 + iv_length].to_vec();
         let cypher_key = raw_data[8 + iv_length..8 + iv_length + key_length].to_vec();
+        if raw_data.len() < 12 + iv_length + key_length + 4 {
+            return Err(String::from("expected at least 4 additional bytes of salt length"));
+        }
+
+        let salt_length = u32::from_ne_bytes(
+            raw_data[8 + iv_length + key_length..8 + iv_length + key_length + 4]
+                .try_into().unwrap()) as usize;
+        if raw_data.len() < 12 + iv_length + key_length + salt_length {
+            return Err(format!("Expected {} bytes of salt but only got {} bytes left",
+                               salt_length, raw_data.len() - 12 - iv_length - key_length));
+        }
+
+        let salt = raw_data[12 + iv_length + key_length..12 + iv_length + key_length + salt_length]
+            .to_vec();
         Ok(VaultData {
             iv,
             cypher_master_key: cypher_key,
+            salt
         })
     }
 }
