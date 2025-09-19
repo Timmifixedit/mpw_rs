@@ -9,6 +9,11 @@ struct EncryptedFile {
     cypher_data: Vec<u8>,
 }
 
+struct VaultData {
+    iv: Vec<u8>,
+    cypher_master_key: Vec<u8>,
+}
+
 struct PwHeader {
     master_iv: Vec<u8>,
     iv: Vec<u8>,
@@ -17,12 +22,50 @@ struct PwHeader {
 
 impl Display for PwHeader {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let str = format!("Master IV: {:02X?} (len {})\n\
+        let str = format!(
+            "Master IV: {:02X?} (len {})\n\
                 IV: {:02X?} (len {})\n\
                 Key {:02X?} (len {})",
-                          self.master_iv, self.iv.len(), self.iv, self.iv.len(),
-                          self.cypher_key, self.cypher_key.len());
+            self.master_iv, self.iv.len(), self.iv, self.iv.len(), self.cypher_key,
+            self.cypher_key.len()
+        );
         write!(f, "{}", str)
+    }
+}
+
+impl Display for VaultData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let str = format!(
+            "IV: {:02X?} (len {})\n\
+             Key {:02X?} (len {})",
+            self.iv, self.iv.len(), self.cypher_master_key, self.cypher_master_key.len());
+        write!(f, "{}", str)
+    }
+}
+
+impl VaultData {
+    fn new(raw_data: &Vec<u8>) -> Result<VaultData, String> {
+        if raw_data.len() < 8 {
+            return Err(String::from("expected at least 8 bytes of header data"));
+        }
+
+        let iv_length = u32::from_ne_bytes(raw_data[0..4].try_into().unwrap()) as usize;
+        let key_length = u32::from_ne_bytes(raw_data[4..8].try_into().unwrap()) as usize;
+        if raw_data.len() < 8 + iv_length + key_length {
+            return Err(format!(
+                "Expected {} bytes of IV and {} bytes of key data but only got {} bytes of data",
+                iv_length,
+                key_length,
+                raw_data.len()
+            ));
+        }
+
+        let iv = raw_data[8..8 + iv_length].to_vec();
+        let cypher_key = raw_data[8 + iv_length..8 + iv_length + key_length].to_vec();
+        Ok(VaultData {
+            iv,
+            cypher_master_key: cypher_key,
+        })
     }
 }
 
@@ -66,32 +109,16 @@ impl EncryptedFile {
     }
 }
 
-fn main() {
-    let args: Vec<String> = env::args().collect();
-    for argument in &args[1..] {
-        println!("{}", argument);
-    }
-
-    if args.len() < 2 {
-        println!("Please specify the path to a file");
-        exit(1);
-    }
-
-    let file = &args[1];
-    if !Path::exists(Path::new(file)) {
-        println!("The path {} does not exist", file);
-        exit(1);
-    }
-
-    let pw_file = match EncryptedFile::new(file.to_string()) {
-        Ok(pw_file) => pw_file,
+fn parse_and_display<T: Display>(file_path: String, new: fn(&Vec<u8>) -> Result<T, String>) {
+    let file = match EncryptedFile::new(file_path) {
+        Ok(file) => file,
         Err(msg) => {
             println!("{}", msg);
             exit(1);
-        },
+        }
     };
 
-    let header = match PwHeader::new(&pw_file.cypher_data) {
+    let header = match new(&file.cypher_data) {
         Ok(header) => header,
         Err(msg) => {
             println!("{}", msg);
@@ -100,4 +127,32 @@ fn main() {
     };
 
     println!("{}", header);
+}
+
+fn main() {
+    let args: Vec<String> = env::args().collect();
+    for argument in &args[1..] {
+        println!("{}", argument);
+    }
+
+    if args.len() < 3 {
+        println!("Please specify the path to the vault file and a pw file");
+        exit(1);
+    }
+
+    let vault_file = &args[1];
+    let pw_file = &args[2];
+    if !Path::exists(Path::new(vault_file)) {
+        println!("The path {} does not exist", vault_file);
+        exit(1);
+    }
+
+    if !Path::exists(Path::new(pw_file)) {
+        println!("The path {} does not exist", pw_file);
+        exit(1);
+    }
+
+    parse_and_display(vault_file.clone(), VaultData::new);
+    println!();
+    parse_and_display(pw_file.clone(), PwHeader::new);
 }
