@@ -3,7 +3,16 @@ use std::fmt::Display;
 use std::fs;
 use std::path::Path;
 use std::process::exit;
+use ring::pbkdf2::{derive, Algorithm};
+use std::io::stdin;
+use std::num::{NonZeroU32};
+use secure_string::{SecureString, SecureVec};
+use openssl::symm::{decrypt, encrypt, Cipher};
+
+static PBKDF2_ALGO: Algorithm = ring::pbkdf2::PBKDF2_HMAC_SHA1;
+static PBKDF2_ITERATIONS: NonZeroU32 = NonZeroU32::new(1000).unwrap();
 static AES_IV_LEN: usize = 16;
+static AES_KEY_LEN: usize = 32;
 static HMAC_SALT_LEN: usize = 8;
 type AesIV = [u8; AES_IV_LEN];
 type Salt = [u8; HMAC_SALT_LEN];
@@ -132,7 +141,7 @@ impl EncryptedFile {
 }
 
 impl RawFile {
-    fn new(path: String) -> Result<RawFile, String> {
+    fn new(path: &String) -> Result<RawFile, String> {
         if !Path::new(&path).exists() {
             return Err(String::from("Path does not exist"));
         }
@@ -140,7 +149,7 @@ impl RawFile {
         let raw_data = fs::read(&path);
         match raw_data {
             Ok(data) => Ok(RawFile {
-                path,
+                path: path.clone(),
                 cypher_data: data,
             }),
             Err(msg) => Err(format!("Error reading file: {}", msg.to_string())),
@@ -148,24 +157,54 @@ impl RawFile {
     }
 }
 
-fn parse_and_display<T: Display>(file_path: String, new: fn(&Vec<u8>) -> Result<T, String>) {
+fn raw(string: &SecureString) -> &[u8] {
+    let us = string.unsecure();
+    us.as_bytes()
+}
+
+fn get_master_key(master_pw: &SecureString, vault_data: &VaultData) -> Result<SecureVec<u8>, String> {
+    let (cypher_key, rem) = vault_data.cypher_master_key.as_chunks::<48>();
+    if cypher_key.len() != 1 || rem.len() != 0 {
+        return Err(format!("Expected encrypted master key of size 48 but got {} bytes", vault_data.cypher_master_key.len()));
+    }
+
+    let cypher_key: [u8; 48] = cypher_key[0];
+    let mut key = [0; AES_KEY_LEN];
+    derive(PBKDF2_ALGO, PBKDF2_ITERATIONS, &vault_data.salt, raw(master_pw), & mut key);
+    match decrypt(Cipher::aes_256_cbc(), &key, Some(&vault_data.iv), &cypher_key) {
+        Ok(key) => Ok(SecureVec::new(key)),
+        Err(msg) => Err(format!("Error retrieving master key: {}", msg.to_string()))
+    }
+}
+
+fn decrypt_text_file(file: &EncryptedFile, master_key: &SecureVec<u8>) -> Result<SecureVec<u8>, String> {
+    let key = match decrypt(Cipher::aes_256_cbc(), master_key.unsecure(),
+                            Some(&file.master_iv), &file.cypher_key) {
+        Ok(key) => SecureVec::from(key),
+        Err(msg) => return Err(format!("Error retrieving file key: {}", msg.to_string()))
+    };
+
+    let key_len = key.unsecure().len();
+    if key_len != AES_KEY_LEN {
+        return Err(format!("Wrong file key length {key_len}, expected {AES_KEY_LEN}"));
+    }
+
+    match decrypt(Cipher::aes_256_cbc(), key.unsecure(), Some(&file.iv), &file.cypher_data) {
+        Ok(data) => Ok(SecureVec::from(data)),
+        Err(msg) => Err(format!("Error decrypting data: {}", msg.to_string()))
+    }
+}
+
+fn parse<T>(file_path: &String, new: fn(&Vec<u8>) -> Result<T, String>) -> Result<T, String> {
     let file = match RawFile::new(file_path) {
         Ok(file) => file,
-        Err(msg) => {
-            println!("{}", msg);
-            exit(1);
-        }
+        Err(msg) => return Err(msg)
     };
 
-    let header = match new(&file.cypher_data) {
-        Ok(header) => header,
-        Err(msg) => {
-            println!("{}", msg);
-            exit(1);
-        }
-    };
-
-    println!("{}", header);
+    match new(&file.cypher_data) {
+        Ok(file) => Ok(file),
+        Err(msg) => Err(msg)
+    }
 }
 
 fn main() {
@@ -191,7 +230,50 @@ fn main() {
         exit(1);
     }
 
-    parse_and_display(vault_file.clone(), VaultData::new);
+    let pw_file = match parse(pw_file, EncryptedFile::new) {
+        Ok(file) => file,
+        Err(msg) => {
+            println!("Error parsing file header: {msg}");
+            exit(1);
+        }
+    };
+
+    let vault_file = match parse(vault_file, VaultData::new) {
+        Ok(file) => file,
+        Err(msg) => {
+            println!("Error parsing vault file: {msg}");
+            exit(1);
+        }
+    };
+
+    println!("{vault_file}");
     println!();
-    parse_and_display(pw_file.clone(), EncryptedFile::new);
+    println!("{pw_file}");
+    let mut master_pw = String::new();
+    stdin().read_line(& mut master_pw).expect("Error reading user input");
+    master_pw = master_pw.trim().to_string();
+    let master_pw = SecureString::from(master_pw);
+    let master_key = match get_master_key(&master_pw, &vault_file) {
+        Ok(key) => key,
+        Err(msg) => {
+            println!("{msg}");
+            exit(1);
+        }
+    };
+    let pw = match decrypt_text_file(&pw_file, &master_key) {
+        Ok(pw) => pw,
+        Err(msg) => {
+            println!("{msg}");
+            exit(1);
+        }
+    };
+
+
+
+    match String::from_utf8(pw.unsecure().to_vec()) {
+        Ok(data) => println!("{}", data),
+        Err(msg) => {
+            println!("{msg}");
+        }
+    }
 }
