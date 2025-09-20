@@ -4,7 +4,7 @@ use std::fs;
 use std::path::Path;
 use std::process::exit;
 
-struct EncryptedFile {
+struct RawFile {
     path: String,
     cypher_data: Vec<u8>,
 }
@@ -15,20 +15,23 @@ struct VaultData {
     salt: Vec<u8>
 }
 
-struct PwHeader {
+struct EncryptedFile {
     master_iv: Vec<u8>,
     iv: Vec<u8>,
     cypher_key: Vec<u8>,
+    cypher_data: Vec<u8>
 }
 
-impl Display for PwHeader {
+impl Display for EncryptedFile {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let str = format!(
-            "Master IV: {:02X?} (len {})\n\
-                IV: {:02X?} (len {})\n\
-                Key {:02X?} (len {})",
+            "Header:\n\
+            \tMaster IV: {:02X?} (len {})\n\
+            \tIV: {:02X?} (len {})\n\
+            \tKey {:02X?} (len {})\n\
+            Data: {:02X?} (len {})",
             self.master_iv, self.iv.len(), self.iv, self.iv.len(), self.cypher_key,
-            self.cypher_key.len()
+            self.cypher_key.len(), self.cypher_data, self.cypher_data.len()
         );
         write!(f, "{}", str)
     }
@@ -87,8 +90,8 @@ impl VaultData {
     }
 }
 
-impl PwHeader {
-    fn new(raw_data: &Vec<u8>) -> Result<PwHeader, String> {
+impl EncryptedFile {
+    fn new(raw_data: &Vec<u8>) -> Result<EncryptedFile, String> {
         if raw_data.len() < 12 {
             return Err(String::from("Expected 12 bytes of header"));
         }
@@ -106,19 +109,20 @@ impl PwHeader {
         let iv = raw_data[12 + master_iv_len..12 + master_iv_len + iv_len].to_vec();
         let cypher_key =
             raw_data[12 + master_iv_len + iv_len..12 + master_iv_len + iv_len + key_len].to_vec();
-        Ok(PwHeader {master_iv, iv, cypher_key})
+        let data = raw_data[master_iv_len + iv_len + key_len..].to_vec();
+        Ok(EncryptedFile { master_iv, iv, cypher_key, cypher_data: data })
     }
 }
 
-impl EncryptedFile {
-    fn new(path: String) -> Result<EncryptedFile, String> {
+impl RawFile {
+    fn new(path: String) -> Result<RawFile, String> {
         if !Path::new(&path).exists() {
             return Err(String::from("Path does not exist"));
         }
 
         let raw_data = fs::read(&path);
         match raw_data {
-            Ok(data) => Ok(EncryptedFile {
+            Ok(data) => Ok(RawFile {
                 path,
                 cypher_data: data,
             }),
@@ -128,7 +132,7 @@ impl EncryptedFile {
 }
 
 fn parse_and_display<T: Display>(file_path: String, new: fn(&Vec<u8>) -> Result<T, String>) {
-    let file = match EncryptedFile::new(file_path) {
+    let file = match RawFile::new(file_path) {
         Ok(file) => file,
         Err(msg) => {
             println!("{}", msg);
@@ -172,5 +176,5 @@ fn main() {
 
     parse_and_display(vault_file.clone(), VaultData::new);
     println!();
-    parse_and_display(pw_file.clone(), PwHeader::new);
+    parse_and_display(pw_file.clone(), EncryptedFile::new);
 }
