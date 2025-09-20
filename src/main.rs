@@ -1,13 +1,15 @@
 use std::env;
 use std::fmt::Display;
 use std::fs;
+use std::fs::File;
 use std::path::Path;
 use std::process::exit;
 use ring::pbkdf2::{derive, Algorithm};
-use std::io::stdin;
+use std::io::{stdin, Write};
 use std::num::{NonZeroU32};
-use secure_string::{SecureString, SecureVec};
+use secure_string::{SecureArray, SecureString, SecureVec};
 use openssl::symm::{decrypt, encrypt, Cipher};
+use openssl::rand::rand_bytes;
 
 static USE_LITTLE_ENDIAN: bool = true;
 static PBKDF2_ALGO: Algorithm = ring::pbkdf2::PBKDF2_HMAC_SHA1;
@@ -166,6 +168,14 @@ fn from_bytes(bytes: [u8; 4]) -> u32 {
     u32::from_be_bytes(bytes)
 }
 
+fn to_bytes(value: u32) -> [u8; 4] {
+    if USE_LITTLE_ENDIAN {
+        return value.to_le_bytes();
+    }
+
+    value.to_ne_bytes()
+}
+
 fn raw(string: &SecureString) -> &[u8] {
     let us = string.unsecure();
     us.as_bytes()
@@ -214,6 +224,40 @@ fn parse<T>(file_path: &String, new: fn(&Vec<u8>) -> Result<T, String>) -> Resul
         Ok(file) => Ok(file),
         Err(msg) => Err(msg)
     }
+}
+
+fn generate_random_data<const L:usize>() -> SecureArray<u8, L> {
+    let mut data = SecureArray::new([0u8; L]);
+    rand_bytes(&mut data.unsecure_mut()).unwrap();
+    data
+}
+
+fn encrypt_text_file(data: &SecureString, master_key: &SecureVec<u8>) -> Result<Vec<u8>, String> {
+    let file_key = generate_random_data::<AES_KEY_LEN>();
+    let file_iv = generate_random_data::<AES_IV_LEN>();
+    let master_iv = generate_random_data::<AES_IV_LEN>();
+    let mut ret = Vec::<u8>::new();
+    let mut encrypted_key = match encrypt(Cipher::aes_256_cbc(), master_key.unsecure(),
+                                      Some(master_iv.unsecure()), file_key.unsecure()) {
+        Ok(key) => key,
+        Err(msg) => return Err(format!("Failed to encrypt file key: {}", msg.to_string()))
+    };
+
+    ret.extend(to_bytes(master_iv.unsecure().len() as u32));
+    ret.extend(to_bytes(file_iv.unsecure().len() as u32));
+    ret.extend(to_bytes(encrypted_key.len() as u32));
+    ret.extend(master_iv.unsecure());
+    ret.extend(file_iv.unsecure());
+    ret.append(&mut encrypted_key);
+
+    let mut encrypted_data = match encrypt(Cipher::aes_256_cbc(), file_key.unsecure(),
+                                           Some(file_iv.unsecure()), data.unsecure().as_bytes()) {
+        Ok(data) => data,
+        Err(msg) => return Err(format!("Failed to encrypt data: {}", msg.to_string()))
+    };
+
+    ret.append(&mut encrypted_data);
+    Ok(ret)
 }
 
 fn main() {
@@ -283,6 +327,19 @@ fn main() {
         Ok(data) => println!("{}", data),
         Err(msg) => {
             println!("{msg}");
+            exit(1);
         }
     }
+
+    println!("Enter data to encrypt:");
+    let mut input = String::new();
+    stdin().read_line(&mut input).expect("Error reading user input");
+    input = input.trim().to_string();
+    let encrypted = encrypt_text_file(&SecureString::from(input), &master_key).expect("Error encrypting data");
+    println!("Specify destination");
+    input = String::new();
+    stdin().read_line(&mut input).expect("Error reading user input");
+    input = input.trim().to_string();
+    let mut file = File::create(&input).expect(format!("Error creating file {}", &input).as_str());
+    file.write_all(&encrypted).expect(format!("Error writing to file {}", &input).as_str());
 }
