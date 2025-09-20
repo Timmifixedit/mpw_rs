@@ -126,7 +126,7 @@ impl EncryptedFile {
         let iv = raw_data[12 + AES_IV_LEN..12 + AES_IV_LEN + AES_IV_LEN].try_into().unwrap();
         let cypher_key =
             raw_data[12 + master_iv_len + iv_len..12 + master_iv_len + iv_len + key_len].to_vec();
-        let data = raw_data[master_iv_len + iv_len + key_len..].to_vec();
+        let data = raw_data[12 + master_iv_len + iv_len + key_len..].to_vec();
         Ok(EncryptedFile { master_iv, iv, cypher_key, cypher_data: data })
     }
 }
