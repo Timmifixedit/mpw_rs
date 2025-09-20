@@ -3,6 +3,11 @@ use std::fmt::Display;
 use std::fs;
 use std::path::Path;
 use std::process::exit;
+static AES_IV_LEN: usize = 16;
+static HMAC_SALT_LEN: usize = 8;
+type AesIV = [u8; AES_IV_LEN];
+type Salt = [u8; HMAC_SALT_LEN];
+
 
 struct RawFile {
     path: String,
@@ -10,14 +15,14 @@ struct RawFile {
 }
 
 struct VaultData {
-    iv: Vec<u8>,
+    iv: AesIV,
     cypher_master_key: Vec<u8>,
-    salt: Vec<u8>
+    salt: Salt
 }
 
 struct EncryptedFile {
-    master_iv: Vec<u8>,
-    iv: Vec<u8>,
+    master_iv: AesIV,
+    iv: AesIV,
     cypher_key: Vec<u8>,
     cypher_data: Vec<u8>
 }
@@ -56,6 +61,10 @@ impl VaultData {
         }
 
         let iv_length = u32::from_ne_bytes(raw_data[0..4].try_into().unwrap()) as usize;
+        if iv_length != AES_IV_LEN {
+            return Err(format!("Expected IV length of {} bytes, got {}", AES_IV_LEN, iv_length));
+        }
+
         let key_length = u32::from_ne_bytes(raw_data[4..8].try_into().unwrap()) as usize;
         if raw_data.len() < 8 + iv_length + key_length {
             return Err(format!(
@@ -66,7 +75,7 @@ impl VaultData {
             ));
         }
 
-        let iv = raw_data[8..8 + iv_length].to_vec();
+        let iv: [u8; AES_IV_LEN] = raw_data[8..8 + AES_IV_LEN].try_into().unwrap();
         let cypher_key = raw_data[8 + iv_length..8 + iv_length + key_length].to_vec();
         if raw_data.len() < 12 + iv_length + key_length + 4 {
             return Err(String::from("expected at least 4 additional bytes of salt length"));
@@ -75,13 +84,17 @@ impl VaultData {
         let salt_length = u32::from_ne_bytes(
             raw_data[8 + iv_length + key_length..8 + iv_length + key_length + 4]
                 .try_into().unwrap()) as usize;
+        if salt_length != HMAC_SALT_LEN {
+            return Err(format!("Expected salt of length {} bytes, got {}",
+                               HMAC_SALT_LEN, salt_length));
+        }
         if raw_data.len() < 12 + iv_length + key_length + salt_length {
             return Err(format!("Expected {} bytes of salt but only got {} bytes left",
                                salt_length, raw_data.len() - 12 - iv_length - key_length));
         }
 
-        let salt = raw_data[12 + iv_length + key_length..12 + iv_length + key_length + salt_length]
-            .to_vec();
+        let salt = raw_data[12 + iv_length + key_length..
+            12 + iv_length + key_length + HMAC_SALT_LEN].try_into().unwrap();
         Ok(VaultData {
             iv,
             cypher_master_key: cypher_key,
@@ -98,6 +111,10 @@ impl EncryptedFile {
 
         let master_iv_len = u32::from_ne_bytes(raw_data[0..4].try_into().unwrap()) as usize;
         let iv_len = u32::from_ne_bytes(raw_data[4..8].try_into().unwrap()) as usize;
+        if master_iv_len != AES_IV_LEN || iv_len != AES_IV_LEN {
+            return Err(format!("Expected IV of length {} bytes, got {}", AES_IV_LEN, iv_len));
+        }
+
         let key_len = u32::from_ne_bytes(raw_data[8..12].try_into().unwrap()) as usize;
         if raw_data.len() < 12 + master_iv_len + iv_len + key_len {
             return Err(format!(
@@ -105,8 +122,8 @@ impl EncryptedFile {
                 got {} bytes of data", master_iv_len, iv_len, key_len, raw_data.len()));
         }
 
-        let master_iv = raw_data[12..12 + master_iv_len].to_vec();
-        let iv = raw_data[12 + master_iv_len..12 + master_iv_len + iv_len].to_vec();
+        let master_iv = raw_data[12..12 + AES_IV_LEN].try_into().unwrap();
+        let iv = raw_data[12 + AES_IV_LEN..12 + AES_IV_LEN + AES_IV_LEN].try_into().unwrap();
         let cypher_key =
             raw_data[12 + master_iv_len + iv_len..12 + master_iv_len + iv_len + key_len].to_vec();
         let data = raw_data[master_iv_len + iv_len + key_len..].to_vec();
