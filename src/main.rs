@@ -9,6 +9,7 @@ use std::num::{NonZeroU32};
 use secure_string::{SecureString, SecureVec};
 use openssl::symm::{decrypt, encrypt, Cipher};
 
+static USE_LITTLE_ENDIAN: bool = true;
 static PBKDF2_ALGO: Algorithm = ring::pbkdf2::PBKDF2_HMAC_SHA1;
 static PBKDF2_ITERATIONS: NonZeroU32 = NonZeroU32::new(1000).unwrap();
 static AES_IV_LEN: usize = 16;
@@ -69,12 +70,12 @@ impl VaultData {
             return Err(String::from("expected at least 8 bytes of header data"));
         }
 
-        let iv_length = u32::from_ne_bytes(raw_data[0..4].try_into().unwrap()) as usize;
+        let iv_length = from_bytes(raw_data[0..4].try_into().unwrap()) as usize;
         if iv_length != AES_IV_LEN {
             return Err(format!("Expected IV length of {} bytes, got {}", AES_IV_LEN, iv_length));
         }
 
-        let key_length = u32::from_ne_bytes(raw_data[4..8].try_into().unwrap()) as usize;
+        let key_length = from_bytes(raw_data[4..8].try_into().unwrap()) as usize;
         if raw_data.len() < 8 + iv_length + key_length {
             return Err(format!(
                 "Expected {} bytes of IV and {} bytes of key data but only got {} bytes of data",
@@ -90,7 +91,7 @@ impl VaultData {
             return Err(String::from("expected at least 4 additional bytes of salt length"));
         }
 
-        let salt_length = u32::from_ne_bytes(
+        let salt_length = from_bytes(
             raw_data[8 + iv_length + key_length..8 + iv_length + key_length + 4]
                 .try_into().unwrap()) as usize;
         if salt_length != HMAC_SALT_LEN {
@@ -118,13 +119,13 @@ impl EncryptedFile {
             return Err(String::from("Expected 12 bytes of header"));
         }
 
-        let master_iv_len = u32::from_ne_bytes(raw_data[0..4].try_into().unwrap()) as usize;
-        let iv_len = u32::from_ne_bytes(raw_data[4..8].try_into().unwrap()) as usize;
+        let master_iv_len = from_bytes(raw_data[0..4].try_into().unwrap()) as usize;
+        let iv_len = from_bytes(raw_data[4..8].try_into().unwrap()) as usize;
         if master_iv_len != AES_IV_LEN || iv_len != AES_IV_LEN {
             return Err(format!("Expected IV of length {} bytes, got {}", AES_IV_LEN, iv_len));
         }
 
-        let key_len = u32::from_ne_bytes(raw_data[8..12].try_into().unwrap()) as usize;
+        let key_len = from_bytes(raw_data[8..12].try_into().unwrap()) as usize;
         if raw_data.len() < 12 + master_iv_len + iv_len + key_len {
             return Err(format!(
                 "Expected {} bytes of master IV, {} bytes of IV and {} bytes of key data but only \
@@ -155,6 +156,14 @@ impl RawFile {
             Err(msg) => Err(format!("Error reading file: {}", msg.to_string())),
         }
     }
+}
+
+fn from_bytes(bytes: [u8; 4]) -> u32 {
+    if USE_LITTLE_ENDIAN {
+        return u32::from_le_bytes(bytes);
+    }
+
+    u32::from_be_bytes(bytes)
 }
 
 fn raw(string: &SecureString) -> &[u8] {
