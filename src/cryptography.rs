@@ -1,4 +1,4 @@
-use std::fmt::{format, Debug, Display};
+use std::fmt::{Display};
 use std::fs;
 use std::fs::File;
 use std::io::{Read, Seek};
@@ -18,6 +18,7 @@ static AES_KEY_LEN: usize = 32;
 static HMAC_SALT_LEN: usize = 8;
 type AesIV = [u8; AES_IV_LEN];
 type Salt = [u8; HMAC_SALT_LEN];
+type AesKey = SecureArray<u8, AES_KEY_LEN>;
 
 
 pub struct VaultData {
@@ -166,7 +167,7 @@ pub fn raw(string: &SecureString) -> &[u8] {
     us.as_bytes()
 }
 
-pub fn get_master_key(master_pw: &SecureString, vault_data: &VaultData) -> Result<SecureVec<u8>, String> {
+pub fn get_master_key(master_pw: &SecureString, vault_data: &VaultData) -> Result<AesKey, String> {
     let (cypher_key, rem) = vault_data.cypher_master_key.as_chunks::<48>();
     if cypher_key.len() != 1 || rem.len() != 0 {
         return Err(format!("Expected encrypted master key of size 48 but got {} bytes", vault_data.cypher_master_key.len()));
@@ -176,12 +177,12 @@ pub fn get_master_key(master_pw: &SecureString, vault_data: &VaultData) -> Resul
     let mut key = [0; AES_KEY_LEN];
     derive(PBKDF2_ALGO, PBKDF2_ITERATIONS, &vault_data.salt, raw(master_pw), & mut key);
     match decrypt(Cipher::aes_256_cbc(), &key, Some(&vault_data.iv), &cypher_key) {
-        Ok(key) => Ok(SecureVec::new(key)),
+        Ok(key) => Ok(SecureArray::new(key.try_into().unwrap())),
         Err(msg) => Err(format!("Error retrieving master key: {}", msg.to_string()))
     }
 }
 
-pub fn decrypt_text_file(file: &EncryptedFile, master_key: &SecureVec<u8>) -> Result<SecureVec<u8>, String> {
+pub fn decrypt_text_file(file: &EncryptedFile, master_key: &AesKey) -> Result<SecureVec<u8>, String> {
     let key = match decrypt(Cipher::aes_256_cbc(), master_key.unsecure(),
                             Some(&file.master_iv), &file.cypher_key) {
         Ok(key) => SecureVec::from(key),
@@ -206,7 +207,7 @@ pub fn generate_random_data<const L:usize>() -> SecureArray<u8, L> {
     data
 }
 
-pub fn encrypt_text_file(data: &SecureString, master_key: &SecureVec<u8>) -> Result<Vec<u8>, String> {
+pub fn encrypt_text_file(data: &SecureString, master_key: &AesKey) -> Result<Vec<u8>, String> {
     let file_key = generate_random_data::<AES_KEY_LEN>();
     let file_iv = generate_random_data::<AES_IV_LEN>();
     let master_iv = generate_random_data::<AES_IV_LEN>();
