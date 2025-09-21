@@ -1,15 +1,11 @@
-use std::env;
 use std::fmt::Display;
 use std::fs;
-use std::fs::File;
+use std::num::NonZeroU32;
 use std::path::Path;
-use std::process::exit;
-use ring::pbkdf2::{derive, Algorithm};
-use std::io::{stdin, Write};
-use std::num::{NonZeroU32};
-use secure_string::{SecureArray, SecureString, SecureVec};
-use openssl::symm::{decrypt, encrypt, Cipher};
 use openssl::rand::rand_bytes;
+use openssl::symm::{decrypt, encrypt, Cipher};
+use ring::pbkdf2::{derive, Algorithm};
+use secure_string::{SecureArray, SecureString, SecureVec};
 
 static USE_LITTLE_ENDIAN: bool = true;
 static PBKDF2_ALGO: Algorithm = ring::pbkdf2::PBKDF2_HMAC_SHA1;
@@ -21,18 +17,18 @@ type AesIV = [u8; AES_IV_LEN];
 type Salt = [u8; HMAC_SALT_LEN];
 
 
-struct RawFile {
+pub struct RawFile {
     path: String,
     cypher_data: Vec<u8>,
 }
 
-struct VaultData {
+pub struct VaultData {
     iv: AesIV,
     cypher_master_key: Vec<u8>,
     salt: Salt
 }
 
-struct EncryptedFile {
+pub struct EncryptedFile {
     master_iv: AesIV,
     iv: AesIV,
     cypher_key: Vec<u8>,
@@ -67,7 +63,7 @@ impl Display for VaultData {
 }
 
 impl VaultData {
-    fn new(raw_data: &Vec<u8>) -> Result<VaultData, String> {
+    pub fn new(raw_data: &Vec<u8>) -> Result<VaultData, String> {
         if raw_data.len() < 8 {
             return Err(String::from("expected at least 8 bytes of header data"));
         }
@@ -116,7 +112,7 @@ impl VaultData {
 }
 
 impl EncryptedFile {
-    fn new(raw_data: &Vec<u8>) -> Result<EncryptedFile, String> {
+    pub fn new(raw_data: &Vec<u8>) -> Result<EncryptedFile, String> {
         if raw_data.len() < 12 {
             return Err(String::from("Expected 12 bytes of header"));
         }
@@ -144,7 +140,7 @@ impl EncryptedFile {
 }
 
 impl RawFile {
-    fn new(path: &String) -> Result<RawFile, String> {
+    pub fn new(path: &String) -> Result<RawFile, String> {
         if !Path::new(&path).exists() {
             return Err(String::from("Path does not exist"));
         }
@@ -160,7 +156,7 @@ impl RawFile {
     }
 }
 
-fn from_bytes(bytes: [u8; 4]) -> u32 {
+pub fn from_bytes(bytes: [u8; 4]) -> u32 {
     if USE_LITTLE_ENDIAN {
         return u32::from_le_bytes(bytes);
     }
@@ -168,7 +164,7 @@ fn from_bytes(bytes: [u8; 4]) -> u32 {
     u32::from_be_bytes(bytes)
 }
 
-fn to_bytes(value: u32) -> [u8; 4] {
+pub fn to_bytes(value: u32) -> [u8; 4] {
     if USE_LITTLE_ENDIAN {
         return value.to_le_bytes();
     }
@@ -176,12 +172,12 @@ fn to_bytes(value: u32) -> [u8; 4] {
     value.to_ne_bytes()
 }
 
-fn raw(string: &SecureString) -> &[u8] {
+pub fn raw(string: &SecureString) -> &[u8] {
     let us = string.unsecure();
     us.as_bytes()
 }
 
-fn get_master_key(master_pw: &SecureString, vault_data: &VaultData) -> Result<SecureVec<u8>, String> {
+pub fn get_master_key(master_pw: &SecureString, vault_data: &VaultData) -> Result<SecureVec<u8>, String> {
     let (cypher_key, rem) = vault_data.cypher_master_key.as_chunks::<48>();
     if cypher_key.len() != 1 || rem.len() != 0 {
         return Err(format!("Expected encrypted master key of size 48 but got {} bytes", vault_data.cypher_master_key.len()));
@@ -196,7 +192,7 @@ fn get_master_key(master_pw: &SecureString, vault_data: &VaultData) -> Result<Se
     }
 }
 
-fn decrypt_text_file(file: &EncryptedFile, master_key: &SecureVec<u8>) -> Result<SecureVec<u8>, String> {
+pub fn decrypt_text_file(file: &EncryptedFile, master_key: &SecureVec<u8>) -> Result<SecureVec<u8>, String> {
     let key = match decrypt(Cipher::aes_256_cbc(), master_key.unsecure(),
                             Some(&file.master_iv), &file.cypher_key) {
         Ok(key) => SecureVec::from(key),
@@ -214,7 +210,7 @@ fn decrypt_text_file(file: &EncryptedFile, master_key: &SecureVec<u8>) -> Result
     }
 }
 
-fn parse<T>(file_path: &String, new: fn(&Vec<u8>) -> Result<T, String>) -> Result<T, String> {
+pub fn parse<T>(file_path: &String, new: fn(&Vec<u8>) -> Result<T, String>) -> Result<T, String> {
     let file = match RawFile::new(file_path) {
         Ok(file) => file,
         Err(msg) => return Err(msg)
@@ -226,19 +222,19 @@ fn parse<T>(file_path: &String, new: fn(&Vec<u8>) -> Result<T, String>) -> Resul
     }
 }
 
-fn generate_random_data<const L:usize>() -> SecureArray<u8, L> {
+pub fn generate_random_data<const L:usize>() -> SecureArray<u8, L> {
     let mut data = SecureArray::new([0u8; L]);
     rand_bytes(&mut data.unsecure_mut()).unwrap();
     data
 }
 
-fn encrypt_text_file(data: &SecureString, master_key: &SecureVec<u8>) -> Result<Vec<u8>, String> {
+pub fn encrypt_text_file(data: &SecureString, master_key: &SecureVec<u8>) -> Result<Vec<u8>, String> {
     let file_key = generate_random_data::<AES_KEY_LEN>();
     let file_iv = generate_random_data::<AES_IV_LEN>();
     let master_iv = generate_random_data::<AES_IV_LEN>();
     let mut ret = Vec::<u8>::new();
     let mut encrypted_key = match encrypt(Cipher::aes_256_cbc(), master_key.unsecure(),
-                                      Some(master_iv.unsecure()), file_key.unsecure()) {
+                                          Some(master_iv.unsecure()), file_key.unsecure()) {
         Ok(key) => key,
         Err(msg) => return Err(format!("Failed to encrypt file key: {}", msg.to_string()))
     };
@@ -258,88 +254,4 @@ fn encrypt_text_file(data: &SecureString, master_key: &SecureVec<u8>) -> Result<
 
     ret.append(&mut encrypted_data);
     Ok(ret)
-}
-
-fn main() {
-    let args: Vec<String> = env::args().collect();
-    for argument in &args[1..] {
-        println!("{}", argument);
-    }
-
-    if args.len() < 3 {
-        println!("Please specify the path to the vault file and a pw file");
-        exit(1);
-    }
-
-    let vault_file = &args[1];
-    let pw_file = &args[2];
-    if !Path::exists(Path::new(vault_file)) {
-        println!("The path {} does not exist", vault_file);
-        exit(1);
-    }
-
-    if !Path::exists(Path::new(pw_file)) {
-        println!("The path {} does not exist", pw_file);
-        exit(1);
-    }
-
-    let pw_file = match parse(pw_file, EncryptedFile::new) {
-        Ok(file) => file,
-        Err(msg) => {
-            println!("Error parsing file header: {msg}");
-            exit(1);
-        }
-    };
-
-    let vault_file = match parse(vault_file, VaultData::new) {
-        Ok(file) => file,
-        Err(msg) => {
-            println!("Error parsing vault file: {msg}");
-            exit(1);
-        }
-    };
-
-    println!("{vault_file}");
-    println!();
-    println!("{pw_file}");
-    let mut master_pw = String::new();
-    stdin().read_line(& mut master_pw).expect("Error reading user input");
-    master_pw = master_pw.trim().to_string();
-    let master_pw = SecureString::from(master_pw);
-    let master_key = match get_master_key(&master_pw, &vault_file) {
-        Ok(key) => key,
-        Err(msg) => {
-            println!("{msg}");
-            exit(1);
-        }
-    };
-    let pw = match decrypt_text_file(&pw_file, &master_key) {
-        Ok(pw) => pw,
-        Err(msg) => {
-            println!("{msg}");
-            exit(1);
-        }
-    };
-
-
-
-    match String::from_utf8(pw.unsecure().to_vec()) {
-        Ok(data) => println!("{}", data),
-        Err(msg) => {
-            println!("{msg}");
-            exit(1);
-        }
-    }
-
-    println!("Enter data to encrypt:");
-    let mut input = String::new();
-    stdin().read_line(&mut input).expect("Error reading user input");
-    input = input.trim().to_string();
-    let encrypted = encrypt_text_file(&SecureString::from(input), &master_key).expect("Error encrypting data");
-    println!("Specify destination");
-    input = String::new();
-    stdin().read_line(&mut input).expect("Error reading user input");
-    input = input.trim().to_string();
-    let mut file = File::create(&input).expect(format!("Error creating file {}", &input).as_str());
-    file.write_all(&encrypted).expect(format!("Error writing to file {}", &input).as_str());
 }
