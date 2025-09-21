@@ -29,7 +29,7 @@ fn main() {
         exit(1);
     }
 
-    let pw_file = match crypt::parse(pw_file, crypt::EncryptedFile::new) {
+    let pw_file = match crypt::EncryptedFile::new(pw_file) {
         Ok(file) => file,
         Err(msg) => {
             println!("Error parsing file header: {msg}");
@@ -37,7 +37,7 @@ fn main() {
         }
     };
 
-    let vault_file = match crypt::parse(vault_file, crypt::VaultData::new) {
+    let vault_file = match crypt::VaultData::new(vault_file) {
         Ok(file) => file,
         Err(msg) => {
             println!("Error parsing vault file: {msg}");
