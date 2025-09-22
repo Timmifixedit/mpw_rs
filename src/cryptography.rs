@@ -18,7 +18,7 @@ static AES_KEY_LEN: usize = 32;
 static HMAC_SALT_LEN: usize = 8;
 type AesIV = [u8; AES_IV_LEN];
 type Salt = [u8; HMAC_SALT_LEN];
-type AesKey = SecureArray<u8, AES_KEY_LEN>;
+pub type AesKey = SecureArray<u8, AES_KEY_LEN>;
 
 
 pub struct VaultData {
@@ -28,11 +28,11 @@ pub struct VaultData {
 }
 
 pub struct EncryptedFile {
-    path: String,
-    master_iv: AesIV,
-    iv: AesIV,
-    cypher_key: Vec<u8>,
-    data_offset: usize
+    pub path: String,
+    pub master_iv: AesIV,
+    pub iv: AesIV,
+    pub cypher_key: Vec<u8>,
+    pub data_offset: usize
 }
 
 impl Display for EncryptedFile {

@@ -1,9 +1,12 @@
 use std::env;
 use std::fs::File;
 use std::path::Path;
-use std::io::{stdin, Write};
-use secure_string::SecureString;
+use std::io::{stdin, Seek, Write};
+use std::io::SeekFrom::Start;
+use openssl::symm::{decrypt, Cipher};
+use secure_string::{SecureString};
 use ::mpw_rs::cryptography as crypt;
+use mpw_rs::cryptography::AesKey;
 
 fn main() -> Result<(), String> {
     let args: Vec<String> = env::args().collect();
@@ -45,13 +48,37 @@ fn main() -> Result<(), String> {
     println!("Enter data to encrypt:");
     let mut input = String::new();
     stdin().read_line(&mut input).map_err(|x| x.to_string())?;
-    input = input.trim().to_string();
-    let encrypted = crypt::encrypt_text_file(&SecureString::from(input), &master_key)?;
+    let src_file = input.trim().to_string();
     println!("Specify destination");
     input = String::new();
     stdin().read_line(&mut input).map_err(|x| x.to_string())?;
     input = input.trim().to_string();
-    let mut file = File::create(&input).map_err(|msg| format!("Error creating file {}: {msg}", &input))?;
-    file.write_all(&encrypted).map_err(|msg| format!("Error writing to file {}: {msg}", &input))?;
+    let src_file_handle = File::options().read(true).write(true).open(&src_file)
+        .map_err(|msg| format!("Error opening file {}: {msg}", &src_file))?;
+    let dest_file = &input;
+    let mut file =
+        File::create(&input).map_err(|msg| format!("Error creating file {}: {msg}", &input))?;
+    let (header, key, iv) = crypt::generate_file_header(&master_key)?;
+    file.write_all(&header)
+        .map_err(|msg| format!("Error writing header to file {}: {msg}", &input))?;
+    crypt::crypto_write(src_file_handle, &mut file, &key, &iv)?;
+    std::fs::remove_file(&src_file)
+        .map_err(|msg| format!("Error removing file {}: {msg}", &src_file))?;
+
+    println!("File encrypted successfully. Press enter when you're ready to decrypt");
+    stdin().read_line(&mut String::new()).map_err(|x| x.to_string())?;
+    let enc_file = crypt::EncryptedFile::new(dest_file)?;
+    let key = match decrypt(Cipher::aes_256_cbc(), master_key.unsecure(),
+                            Some(&enc_file.master_iv), &enc_file.cypher_key) {
+        Ok(key) => AesKey::from(key.as_chunks::<32>().0[0]),
+        Err(msg) => return Err(format!("Error decrypting key: {msg}"))
+    };
+    let mut src_file_handle = File::open(&enc_file.path).
+        map_err(|msg| format!("Error opening file {}: {msg}", &enc_file.path))?;
+    src_file_handle.seek(Start(enc_file.data_offset as u64))
+        .map_err(|msg| format!("Error seeking to data offset {}: {msg}", enc_file.data_offset))?;
+    let mut file = File::create(&src_file)
+        .map_err(|msg| format!("Error creating file {}: {msg}", &src_file))?;
+    crypt::crypto_read(&src_file_handle, &mut file, &key, &enc_file.iv)?;
     Ok(())
 }
