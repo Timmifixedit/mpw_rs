@@ -1,12 +1,13 @@
 use std::fmt::{Display};
 use std::fs;
-use std::io::{Read, Write, Seek, BufReader, BufWriter};
+use std::io::{Read, Write, Seek, BufWriter};
 use std::io::SeekFrom::{Current, Start};
 use std::num::NonZeroU32;
 use std::path::Path;
 use openssl::symm::{decrypt, encrypt, Cipher};
 use ring::pbkdf2::{derive, Algorithm};
 use secure_string::{SecureArray, SecureString, SecureVec};
+use cryptostream::write::{Encryptor, Decryptor};
 use crate::io;
 
 static USE_LITTLE_ENDIAN: bool = true;
@@ -226,4 +227,32 @@ pub fn encrypt_text_file(data: &SecureString, master_key: &AesKey) -> Result<Vec
 
     contents.append(&mut encrypted_data);
     Ok(contents)
+}
+
+pub fn crypto_write<Source, Dest>(source: Source, dest: &mut Dest, key: &AesKey, iv: &AesIV) -> Result<(), String>
+where
+    Source: Read + Write + Seek,
+    Dest: Write
+{
+    let mut cs = Encryptor::new(dest, Cipher::aes_256_cbc(), key.unsecure(), iv)
+        .map_err(|err| format!("failed to create encryptor: {}", err.to_string()))?;
+    let (mut source, source_size) = io::transfer_data(source, &mut cs)?;
+    source.seek(Start(0)).map_err(|err| format!("failed to seek to start of source buffer: {}", err.to_string()))?;
+    let mut bw_source = BufWriter::new(source);
+    bw_source.write_all(&vec![0u8; source_size]).map_err(|err| format!("failed to zero source buffer: {}", err.to_string()))?;
+    bw_source.flush().map_err(|err| format!("failed to flush source buffer: {}", err.to_string()))?;
+    cs.finish().map_err(|err| format!("failed to finish encryption: {}", err.to_string()))?;
+    Ok(())
+}
+
+pub fn crypto_read<Source, Dest>(source: Source, dest: &mut Dest, key: &AesKey, iv: &AesIV) -> Result<(), String>
+where
+    Source: Read,
+    Dest: Write
+{
+    let mut cs = Decryptor::new(dest, Cipher::aes_256_cbc(), key.unsecure(), iv)
+        .map_err(|err| format!("failed to create decryptor: {}", err.to_string()))?;
+    io::transfer_data(source, &mut cs)?;
+    cs.finish().map_err(|err| format!("failed to finish decryption: {}", err.to_string()))?;
+    Ok(())
 }
