@@ -1,14 +1,13 @@
 use std::fmt::{Display};
 use std::fs;
-use std::fs::File;
-use std::io::{Read, Seek};
+use std::io::{Read, Write, Seek, BufReader, BufWriter};
 use std::io::SeekFrom::{Current, Start};
 use std::num::NonZeroU32;
 use std::path::Path;
-use openssl::rand::rand_bytes;
 use openssl::symm::{decrypt, encrypt, Cipher};
 use ring::pbkdf2::{derive, Algorithm};
 use secure_string::{SecureArray, SecureString, SecureVec};
+use crate::io;
 
 static USE_LITTLE_ENDIAN: bool = true;
 static PBKDF2_ALGO: Algorithm = ring::pbkdf2::PBKDF2_HMAC_SHA1;
@@ -69,55 +68,26 @@ impl VaultData {
             Err(msg) => { return Err(format!("Could not open file {path}: {msg}")); }
         };
 
-        let header = read_bytes(& mut file, 8, Start(0), "header")?;
-        let iv_length = from_bytes(header[0..4].try_into().unwrap()) as usize;
+        let header = io::read_bytes(& mut file, 8, Start(0), "header")?;
+        let iv_length = util::from_bytes(header[0..4].try_into().unwrap()) as usize;
         if iv_length != AES_IV_LEN {
             return Err(format!("Expected IV length of {} bytes, got {}", AES_IV_LEN, iv_length));
         }
 
-        let key_length = from_bytes(header[4..8].try_into().unwrap()) as usize;
-        let iv = read_bytes(& mut file, AES_IV_LEN, Start(8), "iv")?.try_into().unwrap();
-        let cypher_key = read_bytes(& mut file, key_length, Current(0), "cypher key")?;
-        let salt_length = read_bytes(&mut file, 4, Current(0), "salt len")?.try_into().unwrap();
-        let salt_length = from_bytes(salt_length) as usize;
+        let key_length = util::from_bytes(header[4..8].try_into().unwrap()) as usize;
+        let iv = io::read_bytes(& mut file, AES_IV_LEN, Start(8), "iv")?.try_into().unwrap();
+        let cypher_key = io::read_bytes(& mut file, key_length, Current(0), "cypher key")?;
+        let salt_length = io::read_bytes(&mut file, 4, Current(0), "salt len")?.try_into().unwrap();
+        let salt_length = util::from_bytes(salt_length) as usize;
         if salt_length != HMAC_SALT_LEN {
             return Err(format!("Expected salt of length {} bytes, got {}",
                                HMAC_SALT_LEN, salt_length));
         }
-        let salt = read_bytes(& mut file, HMAC_SALT_LEN, Current(0), "salt")?.try_into().unwrap();
+        let salt = io::read_bytes(& mut file, HMAC_SALT_LEN, Current(0), "salt")?.try_into().unwrap();
         Ok(VaultData { iv, cypher_master_key: cypher_key, salt })
     }
 }
 
-fn read_bytes(file: &mut fs::File, len: usize, offset: std::io::SeekFrom, msg: &str) -> Result<Vec<u8>, String> {
-    if let Err(err) = file.seek(offset) {
-        return Err(format!("Could not seek specified offset: {err}"));
-    }
-
-    let mut ret = vec![0u8; len];
-    if let Err(err) = file.read_exact(&mut ret) {
-        return Err(format!("Could not read {len} bytes for {msg}: {}", err.to_string()));
-    }
-
-    Ok(ret)
-}
-
-fn read_all(file: &String, offset: std::io::SeekFrom) -> Result<Vec<u8>, String> {
-    let mut file_handle = match File::open(file) {
-        Ok(file) => file,
-        Err(msg) => {return Err(format!("Failed to open file {file}: {}", msg.to_string()))}
-    };
-
-    if let Err(err) = file_handle.seek(offset) {
-        return Err(format!("Could not seek specified offset: {err}"));
-    }
-
-    let mut ret = Vec::<u8>::new();
-    match file_handle.read_to_end(&mut ret) {
-        Ok(_) => Ok(ret),
-        Err(msg) => Err(format!("Failed reading file contents: {}", msg.to_string()))
-    }
-}
 
 impl EncryptedFile {
     pub fn new(path: &String) -> Result<EncryptedFile, String> {
@@ -130,42 +100,67 @@ impl EncryptedFile {
             Err(msg) => return Err(format!("Could not open file: {}", msg))
         };
 
-        let header = read_bytes(&mut file, 12, Start(0), "header")?;
-        let master_iv_len = from_bytes(header[0..4].try_into().unwrap()) as usize;
-        let iv_len = from_bytes(header[4..8].try_into().unwrap()) as usize;
+        let header = io::read_bytes(&mut file, 12, Start(0), "header")?;
+        let master_iv_len = util::from_bytes(header[0..4].try_into().unwrap()) as usize;
+        let iv_len = util::from_bytes(header[4..8].try_into().unwrap()) as usize;
         if master_iv_len != AES_IV_LEN || iv_len != AES_IV_LEN {
             return Err(format!("Expected IV of length {} bytes, got {}", AES_IV_LEN, iv_len));
         }
 
-        let key_len = from_bytes(header[8..12].try_into().unwrap()) as usize;
-        let master_iv = read_bytes(& mut file, AES_IV_LEN, Start(12), "master iv")?.try_into().unwrap();
-        let iv = read_bytes(& mut file, AES_IV_LEN, Current(0), "file iv")?.try_into().unwrap();
-        let cypher_key = read_bytes(& mut file, key_len, Current(0), "cypher key")?;
+        let key_len = util::from_bytes(header[8..12].try_into().unwrap()) as usize;
+        let master_iv = io::read_bytes(& mut file, AES_IV_LEN, Start(12), "master iv")?.try_into().unwrap();
+        let iv = io::read_bytes(& mut file, AES_IV_LEN, Current(0), "file iv")?.try_into().unwrap();
+        let cypher_key = io::read_bytes(& mut file, key_len, Current(0), "cypher key")?;
         let data_offset = 12 + 2 * AES_IV_LEN + key_len;
         Ok(EncryptedFile { path: path.clone(), master_iv, iv, cypher_key, data_offset })
     }
 }
 
-pub fn from_bytes(bytes: [u8; 4]) -> u32 {
-    if USE_LITTLE_ENDIAN {
-        return u32::from_le_bytes(bytes);
+mod util {
+    use openssl::rand::rand_bytes;
+    use secure_string::{SecureArray, SecureString};
+    use crate::cryptography::{AesIV, AesKey, Salt, USE_LITTLE_ENDIAN, AES_KEY_LEN, AES_IV_LEN, HMAC_SALT_LEN};
+
+    pub fn from_bytes(bytes: [u8; 4]) -> u32 {
+        if USE_LITTLE_ENDIAN {
+            return u32::from_le_bytes(bytes);
+        }
+
+        u32::from_be_bytes(bytes)
     }
 
-    u32::from_be_bytes(bytes)
-}
+    pub fn to_bytes(value: u32) -> [u8; 4] {
+        if USE_LITTLE_ENDIAN {
+            return value.to_le_bytes();
+        }
 
-pub fn to_bytes(value: u32) -> [u8; 4] {
-    if USE_LITTLE_ENDIAN {
-        return value.to_le_bytes();
+        value.to_ne_bytes()
     }
 
-    value.to_ne_bytes()
+    pub fn raw(string: &SecureString) -> &[u8] {
+        let us = string.unsecure();
+        us.as_bytes()
+    }
+
+    pub fn generate_random_data<const L:usize>() -> SecureArray<u8, L> {
+        let mut data = SecureArray::new([0u8; L]);
+        rand_bytes(&mut data.unsecure_mut()).unwrap();
+        data
+    }
+
+    pub fn generate_key() -> AesKey {
+        generate_random_data::<AES_KEY_LEN>().into()
+    }
+
+    pub fn generate_iv() -> AesIV {
+        generate_random_data::<AES_IV_LEN>().unsecure().try_into().unwrap()
+    }
+
+    pub fn generate_salt() -> Salt {
+        generate_random_data::<HMAC_SALT_LEN>().unsecure().try_into().unwrap()
+    }
 }
 
-pub fn raw(string: &SecureString) -> &[u8] {
-    let us = string.unsecure();
-    us.as_bytes()
-}
 
 pub fn get_master_key(master_pw: &SecureString, vault_data: &VaultData) -> Result<AesKey, String> {
     let (cypher_key, rem) = vault_data.cypher_master_key.as_chunks::<48>();
@@ -175,7 +170,7 @@ pub fn get_master_key(master_pw: &SecureString, vault_data: &VaultData) -> Resul
 
     let cypher_key: [u8; 48] = cypher_key[0];
     let mut key = [0; AES_KEY_LEN];
-    derive(PBKDF2_ALGO, PBKDF2_ITERATIONS, &vault_data.salt, raw(master_pw), & mut key);
+    derive(PBKDF2_ALGO, PBKDF2_ITERATIONS, &vault_data.salt, util::raw(master_pw), & mut key);
     match decrypt(Cipher::aes_256_cbc(), &key, Some(&vault_data.iv), &cypher_key) {
         Ok(key) => Ok(SecureArray::new(key.try_into().unwrap())),
         Err(msg) => Err(format!("Error retrieving master key: {}", msg.to_string()))
@@ -194,34 +189,28 @@ pub fn decrypt_text_file(file: &EncryptedFile, master_key: &AesKey) -> Result<Se
         return Err(format!("Wrong file key length {key_len}, expected {AES_KEY_LEN}"));
     }
 
-    let cypher_data = read_all(&file.path, Start(file.data_offset as u64))?;
+    let cypher_data = io::read_all(&file.path, Start(file.data_offset as u64))?;
     match decrypt(Cipher::aes_256_cbc(), key.unsecure(), Some(&file.iv), &cypher_data) {
         Ok(data) => Ok(SecureVec::from(data)),
         Err(msg) => Err(format!("Error decrypting data: {}", msg.to_string()))
     }
 }
 
-pub fn generate_random_data<const L:usize>() -> SecureArray<u8, L> {
-    let mut data = SecureArray::new([0u8; L]);
-    rand_bytes(&mut data.unsecure_mut()).unwrap();
-    data
-}
-
 pub fn generate_file_header(master_key: &AesKey) -> Result<(Vec<u8>, AesKey, AesIV), String> {
-    let file_key: AesKey = generate_random_data::<AES_KEY_LEN>().into();
-    let file_iv: AesIV = generate_random_data::<AES_IV_LEN>().unsecure().try_into().unwrap();
-    let master_iv = generate_random_data::<AES_IV_LEN>();
+    let file_key = util::generate_key();
+    let file_iv = util::generate_iv();
+    let master_iv = util::generate_iv();
     let mut ret = Vec::<u8>::new();
     let mut encrypted_key = match encrypt(Cipher::aes_256_cbc(), master_key.unsecure(),
-                                          Some(master_iv.unsecure()), file_key.unsecure()) {
+                                          Some(&master_iv), file_key.unsecure()) {
         Ok(key) => key,
         Err(msg) => return Err(format!("Failed to encrypt file key: {}", msg.to_string()))
     };
 
-    ret.extend(to_bytes(master_iv.unsecure().len() as u32));
-    ret.extend(to_bytes(file_iv.len() as u32));
-    ret.extend(to_bytes(encrypted_key.len() as u32));
-    ret.extend(master_iv.unsecure());
+    ret.extend(util::to_bytes(master_iv.len() as u32));
+    ret.extend(util::to_bytes(file_iv.len() as u32));
+    ret.extend(util::to_bytes(encrypted_key.len() as u32));
+    ret.extend(master_iv);
     ret.extend(file_iv);
     ret.append(&mut encrypted_key);
     Ok((ret, file_key, file_iv))
