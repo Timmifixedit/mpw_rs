@@ -207,9 +207,9 @@ pub fn generate_random_data<const L:usize>() -> SecureArray<u8, L> {
     data
 }
 
-pub fn encrypt_text_file(data: &SecureString, master_key: &AesKey) -> Result<Vec<u8>, String> {
-    let file_key = generate_random_data::<AES_KEY_LEN>();
-    let file_iv = generate_random_data::<AES_IV_LEN>();
+pub fn generate_file_header(master_key: &AesKey) -> Result<(Vec<u8>, AesKey, AesIV), String> {
+    let file_key: AesKey = generate_random_data::<AES_KEY_LEN>().into();
+    let file_iv: AesIV = generate_random_data::<AES_IV_LEN>().unsecure().try_into().unwrap();
     let master_iv = generate_random_data::<AES_IV_LEN>();
     let mut ret = Vec::<u8>::new();
     let mut encrypted_key = match encrypt(Cipher::aes_256_cbc(), master_key.unsecure(),
@@ -219,18 +219,22 @@ pub fn encrypt_text_file(data: &SecureString, master_key: &AesKey) -> Result<Vec
     };
 
     ret.extend(to_bytes(master_iv.unsecure().len() as u32));
-    ret.extend(to_bytes(file_iv.unsecure().len() as u32));
+    ret.extend(to_bytes(file_iv.len() as u32));
     ret.extend(to_bytes(encrypted_key.len() as u32));
     ret.extend(master_iv.unsecure());
-    ret.extend(file_iv.unsecure());
+    ret.extend(file_iv);
     ret.append(&mut encrypted_key);
+    Ok((ret, file_key, file_iv))
+}
 
+pub fn encrypt_text_file(data: &SecureString, master_key: &AesKey) -> Result<Vec<u8>, String> {
+    let (mut contents, file_key, file_iv) = generate_file_header(master_key)?;
     let mut encrypted_data = match encrypt(Cipher::aes_256_cbc(), file_key.unsecure(),
-                                           Some(file_iv.unsecure()), data.unsecure().as_bytes()) {
+                                           Some(&file_iv), data.unsecure().as_bytes()) {
         Ok(data) => data,
         Err(msg) => return Err(format!("Failed to encrypt data: {}", msg.to_string()))
     };
 
-    ret.append(&mut encrypted_data);
-    Ok(ret)
+    contents.append(&mut encrypted_data);
+    Ok(contents)
 }
