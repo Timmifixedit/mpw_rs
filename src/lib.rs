@@ -1,4 +1,4 @@
 pub mod cryptography;
-mod io;
 pub mod error;
+mod io;
 mod utility;

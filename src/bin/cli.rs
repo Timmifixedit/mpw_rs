@@ -1,21 +1,21 @@
+use ::mpw_rs::cryptography as crypt;
+use ::mpw_rs::error::MpwError;
+use mpw_rs::cryptography::AesKey;
+use openssl::symm::{Cipher, decrypt};
+use secure_string::SecureString;
 use std::env;
 use std::fs::File;
-use std::path::Path;
-use std::io::{stdin, Seek, Write};
 use std::io::SeekFrom::Start;
-use openssl::symm::{decrypt, Cipher};
-use secure_string::{SecureString};
-use ::mpw_rs::cryptography as crypt;
-use mpw_rs::cryptography::AesKey;
+use std::io::{Seek, Write, stdin};
+use std::path::Path;
 use thiserror;
-use ::mpw_rs::error::MpwError;
 
 #[derive(thiserror::Error, Debug)]
 enum AppError {
     #[error("CLI error: {0}")]
     Simple(String),
     #[error(transparent)]
-    Core(#[from] MpwError)
+    Core(#[from] MpwError),
 }
 
 impl From<String> for AppError {
@@ -50,7 +50,9 @@ fn run() -> Result<(), AppError> {
     println!();
     println!("{pw_file}");
     let mut master_pw = String::new();
-    stdin().read_line(& mut master_pw).expect("Error reading user input");
+    stdin()
+        .read_line(&mut master_pw)
+        .expect("Error reading user input");
     master_pw = master_pw.trim().to_string();
     let master_pw = SecureString::from(master_pw);
     let master_key = crypt::get_master_key(&master_pw, &vault_file)?;
@@ -58,7 +60,7 @@ fn run() -> Result<(), AppError> {
 
     match String::from_utf8(pw.unsecure().to_vec()) {
         Ok(data) => println!("{}", data),
-        Err(msg) => return Err(msg.to_string().into())
+        Err(msg) => return Err(msg.to_string().into()),
     }
 
     println!("Enter data to encrypt:");
@@ -69,7 +71,10 @@ fn run() -> Result<(), AppError> {
     input = String::new();
     stdin().read_line(&mut input).map_err(|x| x.to_string())?;
     input = input.trim().to_string();
-    let src_file_handle = File::options().read(true).write(true).open(&src_file)
+    let src_file_handle = File::options()
+        .read(true)
+        .write(true)
+        .open(&src_file)
         .map_err(|msg| format!("Error opening file {}: {msg}", &src_file))?;
     let dest_file = &input;
     let mut file =
@@ -82,17 +87,29 @@ fn run() -> Result<(), AppError> {
         .map_err(|msg| format!("Error removing file {}: {msg}", &src_file))?;
 
     println!("File encrypted successfully. Press enter when you're ready to decrypt");
-    stdin().read_line(&mut String::new()).map_err(|x| x.to_string())?;
+    stdin()
+        .read_line(&mut String::new())
+        .map_err(|x| x.to_string())?;
     let enc_file = crypt::EncryptedFile::new(dest_file)?;
-    let key = match decrypt(Cipher::aes_256_cbc(), master_key.unsecure(),
-                            Some(&enc_file.master_iv), &enc_file.cypher_key) {
+    let key = match decrypt(
+        Cipher::aes_256_cbc(),
+        master_key.unsecure(),
+        Some(&enc_file.master_iv),
+        &enc_file.cypher_key,
+    ) {
         Ok(key) => AesKey::from(key.as_chunks::<32>().0[0]),
-        Err(msg) => return Err(MpwError::Cryptography(msg.into()).into())
+        Err(msg) => return Err(MpwError::Cryptography(msg.into()).into()),
     };
-    let mut src_file_handle = File::open(&enc_file.path).
-        map_err(|msg| format!("Error opening file {}: {msg}", &enc_file.path))?;
-    src_file_handle.seek(Start(enc_file.data_offset as u64))
-        .map_err(|msg| format!("Error seeking to data offset {}: {msg}", enc_file.data_offset))?;
+    let mut src_file_handle = File::open(&enc_file.path)
+        .map_err(|msg| format!("Error opening file {}: {msg}", &enc_file.path))?;
+    src_file_handle
+        .seek(Start(enc_file.data_offset as u64))
+        .map_err(|msg| {
+            format!(
+                "Error seeking to data offset {}: {msg}",
+                enc_file.data_offset
+            )
+        })?;
     let mut file = File::create(&src_file)
         .map_err(|msg| format!("Error creating file {}: {msg}", &src_file))?;
     crypt::crypto_read(&src_file_handle, &mut file, &key, &enc_file.iv)?;

@@ -1,5 +1,5 @@
-use std::fmt::{Display, Formatter};
 use openssl::error::ErrorStack;
+use std::fmt::{Display, Formatter};
 
 #[derive(thiserror::Error, Debug)]
 pub struct CryptoError(ErrorStack);
@@ -11,8 +11,14 @@ impl Display for CryptoError {
         }
 
         let err = self.0.errors().first().unwrap();
-        write!(f, "Cryptographic error: OpenSSL code: {:X}{}",
-               err.code(), err.reason().and_then(|r| Some(format!(" ({})", r))).unwrap_or_default())
+        write!(
+            f,
+            "Cryptographic error: OpenSSL code: {:X}{}",
+            err.code(),
+            err.reason()
+                .and_then(|r| Some(format!(" ({})", r)))
+                .unwrap_or_default()
+        )
     }
 }
 
@@ -27,7 +33,7 @@ pub enum InvalidHeader {
     #[error("Invalid header: expected {expected}, found {found}")]
     Format {
         expected: &'static str,
-        found: String
+        found: String,
     },
     #[error("Invalid header: Io error: {0}")]
     Io(#[from] std::io::Error),
@@ -42,7 +48,7 @@ pub enum MpwError {
     #[error(transparent)]
     InvalidHeader(#[from] InvalidHeader),
     #[error("Wrong password")]
-    WrongPassword
+    WrongPassword,
 }
 
 pub type Result<T> = std::result::Result<T, MpwError>;

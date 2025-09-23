@@ -1,10 +1,14 @@
+use crate::error;
+use secure_string::SecureVec;
 use std::fs;
 use std::fs::File;
-use std::io::{BufReader, BufWriter, Write, Read, Seek};
-use secure_string::SecureVec;
-use crate::error;
+use std::io::{BufReader, BufWriter, Read, Seek, Write};
 
-pub fn read_bytes(file: &mut fs::File, len: usize, offset: std::io::SeekFrom) -> Result<Vec<u8>, std::io::Error> {
+pub fn read_bytes(
+    file: &mut fs::File,
+    len: usize,
+    offset: std::io::SeekFrom,
+) -> Result<Vec<u8>, std::io::Error> {
     file.seek(offset)?;
     let mut ret = vec![0u8; len];
     file.read_exact(&mut ret)?;
@@ -12,10 +16,9 @@ pub fn read_bytes(file: &mut fs::File, len: usize, offset: std::io::SeekFrom) ->
 }
 
 pub fn read_all(file: &str, offset: std::io::SeekFrom) -> Result<Vec<u8>, std::io::Error> {
-    let mut file_handle = File::open(file).map_err(|e| std::io::Error::new(
-        e.kind(),
-        format!("Failed to open file: {}", e.to_string()),
-    ))?;
+    let mut file_handle = File::open(file).map_err(|e| {
+        std::io::Error::new(e.kind(), format!("Failed to open file: {}", e.to_string()))
+    })?;
 
     file_handle.seek(offset)?;
     let mut ret = Vec::<u8>::new();
@@ -23,7 +26,10 @@ pub fn read_all(file: &str, offset: std::io::SeekFrom) -> Result<Vec<u8>, std::i
     Ok(ret)
 }
 
-pub fn transfer_data<Source: Read, Dest: Write>(source: Source, dest: &mut Dest) -> error::Result<(Source, usize)> {
+pub fn transfer_data<Source: Read, Dest: Write>(
+    source: Source,
+    dest: &mut Dest,
+) -> error::Result<(Source, usize)> {
     let mut b_source = BufReader::new(source);
     let mut b_dest = BufWriter::new(dest);
 

@@ -4,8 +4,6 @@ pub struct Constant<T> {
     pub as_string: &'static str,
 }
 
-
-
 #[macro_export]
 macro_rules! define {
     ($name:ident : $t:ty = $val:expr) => {
