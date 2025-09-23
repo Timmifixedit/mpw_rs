@@ -2,38 +2,28 @@ use std::fs;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Write, Read, Seek};
 use secure_string::SecureVec;
+use crate::error;
 
-pub fn read_bytes(file: &mut fs::File, len: usize, offset: std::io::SeekFrom, msg: &str) -> Result<Vec<u8>, String> {
-    if let Err(err) = file.seek(offset) {
-        return Err(format!("Could not seek specified offset: {err}"));
-    }
-
+pub fn read_bytes(file: &mut fs::File, len: usize, offset: std::io::SeekFrom) -> Result<Vec<u8>, std::io::Error> {
+    file.seek(offset)?;
     let mut ret = vec![0u8; len];
-    if let Err(err) = file.read_exact(&mut ret) {
-        return Err(format!("Could not read {len} bytes for {msg}: {}", err.to_string()));
-    }
-
+    file.read_exact(&mut ret)?;
     Ok(ret)
 }
 
-pub fn read_all(file: &String, offset: std::io::SeekFrom) -> Result<Vec<u8>, String> {
-    let mut file_handle = match File::open(file) {
-        Ok(file) => file,
-        Err(msg) => {return Err(format!("Failed to open file {file}: {}", msg.to_string()))}
-    };
+pub fn read_all(file: &str, offset: std::io::SeekFrom) -> Result<Vec<u8>, std::io::Error> {
+    let mut file_handle = File::open(file).map_err(|e| std::io::Error::new(
+        e.kind(),
+        format!("Failed to open file: {}", e.to_string()),
+    ))?;
 
-    if let Err(err) = file_handle.seek(offset) {
-        return Err(format!("Could not seek specified offset: {err}"));
-    }
-
+    file_handle.seek(offset)?;
     let mut ret = Vec::<u8>::new();
-    match file_handle.read_to_end(&mut ret) {
-        Ok(_) => Ok(ret),
-        Err(msg) => Err(format!("Failed reading file contents: {}", msg.to_string()))
-    }
+    file_handle.read_to_end(&mut ret)?;
+    Ok(ret)
 }
 
-pub fn transfer_data<Source: Read, Dest: Write>(source: Source, dest: &mut Dest) -> Result<(Source, usize), String> {
+pub fn transfer_data<Source: Read, Dest: Write>(source: Source, dest: &mut Dest) -> error::Result<(Source, usize)> {
     let mut b_source = BufReader::new(source);
     let mut b_dest = BufWriter::new(dest);
 
@@ -47,11 +37,9 @@ pub fn transfer_data<Source: Read, Dest: Write>(source: Source, dest: &mut Dest)
             break;
         }
 
-        if let Err(err) = b_dest.write_all(&buf.unsecure()[..num_read]) {
-            return Err(format!("failed to write {num_read} bytes to destination buffer: {}", err.to_string()));
-        }
+        b_dest.write_all(&buf.unsecure()[..num_read])?;
     }
 
-    b_dest.flush().map_err(|err| format!("failed to flush destination buffer: {}", err.to_string()))?;
+    b_dest.flush()?;
     Ok((b_source.into_inner(), num_read_total))
 }
