@@ -1,6 +1,5 @@
 use crate::error;
 use crate::error::MpwError;
-use crate::utility::Constant;
 use crate::{define, io};
 use constcat::concat;
 use cryptostream::write::{Decryptor, Encryptor};

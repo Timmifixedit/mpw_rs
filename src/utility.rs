@@ -7,7 +7,7 @@ pub struct Constant<T> {
 #[macro_export]
 macro_rules! define {
     ($name:ident : $t:ty = $val:expr) => {
-        const $name: Constant<$t> = Constant {
+        const $name: crate::utility::Constant<$t> = crate::utility::Constant {
             value: $val,
             name: stringify!($name),
             as_string: stringify!($val),
