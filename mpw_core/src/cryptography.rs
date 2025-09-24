@@ -11,6 +11,7 @@ use std::fs;
 use std::io::SeekFrom::{Current, Start};
 use std::io::{BufWriter, Read, Seek, Write};
 use std::num::NonZeroU32;
+use std::path::Path;
 
 define!(USE_LITTLE_ENDIAN: bool = true);
 define!(PBKDF2_ALGO: Algorithm = ring::pbkdf2::PBKDF2_HMAC_SHA1);
@@ -29,15 +30,13 @@ pub struct VaultData {
     salt: Salt,
 }
 
-pub struct EncryptedFile {
-    pub path: std::path::PathBuf,
+pub struct FileHeader {
     pub master_iv: AesIV,
     pub iv: AesIV,
     pub cypher_key: Vec<u8>,
-    pub data_offset: usize,
 }
 
-impl Display for EncryptedFile {
+impl Display for FileHeader {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let str = format!(
             "Header:\n\
@@ -51,9 +50,22 @@ impl Display for EncryptedFile {
             self.iv.len(),
             self.cypher_key,
             self.cypher_key.len(),
-            self.data_offset
+            self.data_offset()
         );
         write!(f, "{}", str)
+    }
+}
+
+impl From<FileHeader> for Vec<u8> {
+    fn from(mut value: FileHeader) -> Self {
+        let mut ret = Vec::new();
+        ret.extend(util::to_bytes(value.master_iv.len() as u32));
+        ret.extend(util::to_bytes(value.iv.len() as u32));
+        ret.extend(util::to_bytes(value.cypher_key.len() as u32));
+        ret.extend(value.master_iv);
+        ret.extend(value.iv);
+        ret.append(&mut value.cypher_key);
+        ret
     }
 }
 
@@ -124,8 +136,8 @@ impl VaultData {
     }
 }
 
-impl EncryptedFile {
-    pub fn new(path: &str) -> error::Result<EncryptedFile> {
+impl FileHeader {
+    pub fn new(path: &Path) -> error::Result<FileHeader> {
         type HErr = error::InvalidHeader;
         let mut file = fs::File::open(&path)?;
         let header = io::read_bytes(&mut file, 12, Start(0)).map_err(HErr::Io)?;
@@ -149,14 +161,15 @@ impl EncryptedFile {
             .try_into()
             .unwrap();
         let cypher_key = io::read_bytes(&mut file, key_len, Current(0)).map_err(HErr::Io)?;
-        let data_offset = 12 + 2 * AES_IV_LEN.value + key_len;
-        Ok(EncryptedFile {
-            path: path.into(),
+        Ok(FileHeader {
             master_iv,
             iv,
             cypher_key,
-            data_offset,
         })
+    }
+
+    pub fn data_offset(&self) -> usize {
+        12 + 2 * AES_IV_LEN.value + self.cypher_key.len()
     }
 }
 
@@ -165,7 +178,7 @@ mod util {
         AES_IV_LEN, AES_KEY_LEN, AesIV, AesKey, HMAC_SALT_LEN, Salt, USE_LITTLE_ENDIAN,
     };
     use openssl::rand::rand_bytes;
-    use secure_string::{SecureArray, SecureString};
+    use secure_string::{SecureArray, SecureString, SecureVec};
 
     pub fn from_bytes(bytes: [u8; 4]) -> u32 {
         if USE_LITTLE_ENDIAN.value {
@@ -211,6 +224,15 @@ mod util {
             .try_into()
             .unwrap()
     }
+
+    pub fn to_key(src: SecureVec<u8>) -> Result<AesKey, crate::error::MpwError> {
+        Ok(AesKey::new(src.unsecure().try_into().map_err(|_| {
+            crate::error::MpwError::InvalidKeyLength {
+                expected: AES_KEY_LEN.value,
+                found: src.unsecure().len(),
+            }
+        })?))
+    }
 }
 
 pub fn get_master_key(master_pw: SecureString, vault_data: &VaultData) -> error::Result<AesKey> {
@@ -254,33 +276,17 @@ pub fn get_master_key(master_pw: SecureString, vault_data: &VaultData) -> error:
     }
 }
 
-pub fn decrypt_text_file(
-    file: &EncryptedFile,
+pub fn decrypt_file(
+    path: &Path,
     master_key: &AesKey,
 ) -> error::Result<SecureVec<u8>> {
-    type HErr = error::InvalidHeader;
-    let key = decrypt(
-        Cipher::aes_256_cbc(),
-        master_key.unsecure(),
-        Some(&file.master_iv),
-        &file.cypher_key,
-    )
-    .map(SecureVec::new)?;
-
-    let key_len = key.unsecure().len();
-    if key_len != AES_KEY_LEN.value {
-        return HErr::Format {
-            expected: constcat::concat!("AES key of length ", AES_KEY_LEN.as_string),
-            found: key_len.to_string(),
-        }
-        .into();
-    }
-
-    let cypher_data = io::read_all(&file.path, Start(file.data_offset as u64))?;
+    let header = FileHeader::new(path)?;
+    let key = decrypt_file_header(&header, &master_key)?;
+    let cypher_data = io::read_all(path, Start(header.data_offset() as u64))?;
     match decrypt(
         Cipher::aes_256_cbc(),
         key.unsecure(),
-        Some(&file.iv),
+        Some(&header.iv),
         &cypher_data,
     ) {
         Ok(data) => Ok(SecureVec::from(data)),
@@ -298,38 +304,41 @@ pub fn decrypt_text_file(
     }
 }
 
-pub fn generate_file_header(master_key: &AesKey) -> error::Result<(Vec<u8>, AesKey, AesIV)> {
+pub fn generate_file_header(master_key: &AesKey) -> error::Result<(FileHeader, AesKey, AesIV)> {
     let file_key = util::generate_key();
     let file_iv = util::generate_iv();
     let master_iv = util::generate_iv();
-    let mut ret = Vec::<u8>::new();
-    let mut encrypted_key = encrypt(
+    let encrypted_key = encrypt(
         Cipher::aes_256_cbc(),
         master_key.unsecure(),
         Some(&master_iv),
         file_key.unsecure(),
     )?;
-
-    ret.extend(util::to_bytes(master_iv.len() as u32));
-    ret.extend(util::to_bytes(file_iv.len() as u32));
-    ret.extend(util::to_bytes(encrypted_key.len() as u32));
-    ret.extend(master_iv);
-    ret.extend(file_iv);
-    ret.append(&mut encrypted_key);
-    Ok((ret, file_key, file_iv))
+    Ok((FileHeader { master_iv, iv: file_iv, cypher_key: encrypted_key }, file_key, file_iv))
 }
 
-pub fn encrypt_text_file(data: SecureString, master_key: &AesKey) -> error::Result<Vec<u8>> {
-    let (mut contents, file_key, file_iv) = generate_file_header(master_key)?;
+pub fn decrypt_file_header(header: &FileHeader, master_key: &AesKey) -> error::Result<AesKey> {
+    let key = decrypt(
+        Cipher::aes_256_cbc(),
+        master_key.unsecure(),
+        Some(&header.master_iv),
+        &header.cypher_key,
+    )
+    .map(SecureVec::new)?;
+    Ok(util::to_key(key)?)
+}
+
+pub fn encrypt_text(data: SecureString, master_key: &AesKey) -> error::Result<Vec<u8>> {
+    let (header, file_key, _) = generate_file_header(master_key)?;
     let mut encrypted_data = encrypt(
         Cipher::aes_256_cbc(),
         file_key.unsecure(),
-        Some(&file_iv),
+        Some(&header.iv),
         data.unsecure().as_bytes(),
     )?;
-
-    contents.append(&mut encrypted_data);
-    Ok(contents)
+    let mut raw: Vec<u8> = header.into();
+    raw.append(&mut encrypted_data);
+    Ok(raw)
 }
 
 pub fn crypto_write<Source, Dest>(

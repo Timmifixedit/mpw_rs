@@ -49,6 +49,11 @@ pub enum MpwError {
     InvalidHeader(#[from] InvalidHeader),
     #[error("Wrong password")]
     WrongPassword,
+    #[error("Invalid key length: {expected} vs {found} bytes")]
+    InvalidKeyLength {
+        expected: usize,
+        found: usize,
+    },
 }
 
 pub type Result<T> = std::result::Result<T, MpwError>;

@@ -35,20 +35,20 @@ fn run() -> Result<(), AppError> {
     }
 
     let vault_file = Path::new(&args[1]);
-    let pw_file = &args[2];
+    let pw_file = Path::new(&args[2]);
     if !Path::exists(Path::new(vault_file)) {
         return Err(format!("The path {} does not exist", vault_file.to_string_lossy()).into());
     }
 
     if !Path::exists(Path::new(pw_file)) {
-        return Err(format!("The path {pw_file} does not exist").into());
+        return Err(format!("The path {} does not exist", pw_file.to_string_lossy()).into());
     }
 
-    let pw_file = crypt::EncryptedFile::new(pw_file)?;
+    let pw_header = crypt::FileHeader::new(pw_file)?;
     let vault_file = crypt::VaultData::new(vault_file)?;
     println!("{vault_file}");
     println!();
-    println!("{pw_file}");
+    println!("{pw_header}");
     let mut master_pw = String::new();
     stdin()
         .read_line(&mut master_pw)
@@ -56,7 +56,7 @@ fn run() -> Result<(), AppError> {
     master_pw = master_pw.trim().to_string();
     let master_pw = SecureString::from(master_pw);
     let master_key = crypt::get_master_key(master_pw, &vault_file)?;
-    let pw = crypt::decrypt_text_file(&pw_file, &master_key)?;
+    let pw = crypt::decrypt_file(&pw_file, &master_key)?;
 
     match String::from_utf8(pw.unsecure().to_vec()) {
         Ok(data) => println!("{}", data),
@@ -76,11 +76,12 @@ fn run() -> Result<(), AppError> {
         .write(true)
         .open(&src_file)
         .map_err(|msg| format!("Error opening file {}: {msg}", &src_file))?;
-    let dest_file = &input;
+    let dest_file = Path::new(&input);
     let mut file =
         File::create(&input).map_err(|msg| format!("Error creating file {}: {msg}", &input))?;
     let (header, key, iv) = crypt::generate_file_header(&master_key)?;
-    file.write_all(&header)
+    let raw: Vec<u8> = header.into();
+    file.write_all(&raw)
         .map_err(|msg| format!("Error writing header to file {}: {msg}", &input))?;
     crypt::crypto_write(src_file_handle, &mut file, &key, &iv)?;
     std::fs::remove_file(&src_file)
@@ -90,7 +91,7 @@ fn run() -> Result<(), AppError> {
     stdin()
         .read_line(&mut String::new())
         .map_err(|x| x.to_string())?;
-    let enc_file = crypt::EncryptedFile::new(dest_file)?;
+    let enc_file = crypt::FileHeader::new(dest_file)?;
     let key = match decrypt(
         Cipher::aes_256_cbc(),
         master_key.unsecure(),
@@ -100,18 +101,18 @@ fn run() -> Result<(), AppError> {
         Ok(key) => AesKey::from(key.as_chunks::<32>().0[0]),
         Err(msg) => return Err(MpwError::Cryptography(msg.into()).into()),
     };
-    let mut src_file_handle = File::open(&enc_file.path).map_err(|msg| {
+    let mut src_file_handle = File::open(dest_file).map_err(|msg| {
         format!(
             "Error opening file {}: {msg}",
-            &enc_file.path.to_string_lossy()
+            dest_file.to_string_lossy()
         )
     })?;
     src_file_handle
-        .seek(Start(enc_file.data_offset as u64))
+        .seek(Start(enc_file.data_offset() as u64))
         .map_err(|msg| {
             format!(
                 "Error seeking to data offset {}: {msg}",
-                enc_file.data_offset
+                enc_file.data_offset()
             )
         })?;
     let mut file = File::create(&src_file)
