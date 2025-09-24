@@ -55,7 +55,7 @@ fn run() -> Result<(), AppError> {
         .expect("Error reading user input");
     master_pw = master_pw.trim().to_string();
     let master_pw = SecureString::from(master_pw);
-    let master_key = crypt::get_master_key(&master_pw, &vault_file)?;
+    let master_key = crypt::get_master_key(master_pw, &vault_file)?;
     let pw = crypt::decrypt_text_file(&pw_file, &master_key)?;
 
     match String::from_utf8(pw.unsecure().to_vec()) {

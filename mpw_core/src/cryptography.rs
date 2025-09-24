@@ -213,7 +213,7 @@ mod util {
     }
 }
 
-pub fn get_master_key(master_pw: &SecureString, vault_data: &VaultData) -> error::Result<AesKey> {
+pub fn get_master_key(master_pw: SecureString, vault_data: &VaultData) -> error::Result<AesKey> {
     type HErr = error::InvalidHeader;
     let (cypher_key, rem) = vault_data.cypher_master_key.as_chunks::<48>();
     if cypher_key.len() != 1 || rem.len() != 0 {
@@ -230,7 +230,7 @@ pub fn get_master_key(master_pw: &SecureString, vault_data: &VaultData) -> error
         PBKDF2_ALGO.value,
         PBKDF2_ITERATIONS.value,
         &vault_data.salt,
-        util::raw(master_pw),
+        util::raw(&master_pw),
         &mut key,
     );
     match decrypt(
@@ -319,7 +319,7 @@ pub fn generate_file_header(master_key: &AesKey) -> error::Result<(Vec<u8>, AesK
     Ok((ret, file_key, file_iv))
 }
 
-pub fn encrypt_text_file(data: &SecureString, master_key: &AesKey) -> error::Result<Vec<u8>> {
+pub fn encrypt_text_file(data: SecureString, master_key: &AesKey) -> error::Result<Vec<u8>> {
     let (mut contents, file_key, file_iv) = generate_file_header(master_key)?;
     let mut encrypted_data = encrypt(
         Cipher::aes_256_cbc(),
