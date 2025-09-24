@@ -1,0 +1,10 @@
+[package]
+name = "mpw_cli"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+mpw_core = { path = "../mpw_core" }
+openssl = { version = "0.10.73", features = ["vendored"] }
+secure-string = "0.3.0"
+thiserror = "2.0.16"

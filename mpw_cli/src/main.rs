@@ -1,6 +1,6 @@
-use ::mpw_rs::cryptography as crypt;
-use ::mpw_rs::error::MpwError;
-use mpw_rs::cryptography::AesKey;
+use mpw_core::cryptography as crypt;
+use mpw_core::error::MpwError;
+use crypt::AesKey;
 use openssl::symm::{Cipher, decrypt};
 use secure_string::SecureString;
 use std::env;
