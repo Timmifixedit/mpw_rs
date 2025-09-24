@@ -55,7 +55,6 @@ pub fn transfer_data<Source: Read, Dest: Write>(
 mod test {
     use super::*;
     use std::io::Cursor;
-    use std::path::Path;
     use tempfile::NamedTempFile;
 
     struct TestFile {

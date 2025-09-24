@@ -75,7 +75,7 @@ impl Display for VaultData {
 }
 
 impl VaultData {
-    pub fn new(path: &str) -> error::Result<VaultData> {
+    pub fn new(path: &std::path::Path) -> error::Result<VaultData> {
         type HErr = error::InvalidHeader;
         let mut file = fs::File::open(path).map_err(|e| {
             std::io::Error::new(

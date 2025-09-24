@@ -34,10 +34,10 @@ fn run() -> Result<(), AppError> {
         return Err(String::from("Please specify the path to the vault file and a pw file").into());
     }
 
-    let vault_file = &args[1];
+    let vault_file = Path::new(&args[1]);
     let pw_file = &args[2];
     if !Path::exists(Path::new(vault_file)) {
-        return Err(format!("The path {vault_file} does not exist").into());
+        return Err(format!("The path {} does not exist", vault_file.to_string_lossy()).into());
     }
 
     if !Path::exists(Path::new(pw_file)) {
