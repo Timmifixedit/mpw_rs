@@ -1,6 +1,6 @@
+use crypt::AesKey;
 use mpw_core::cryptography as crypt;
 use mpw_core::error::MpwError;
-use crypt::AesKey;
 use openssl::symm::{Cipher, decrypt};
 use secure_string::SecureString;
 use std::env;
@@ -100,8 +100,12 @@ fn run() -> Result<(), AppError> {
         Ok(key) => AesKey::from(key.as_chunks::<32>().0[0]),
         Err(msg) => return Err(MpwError::Cryptography(msg.into()).into()),
     };
-    let mut src_file_handle = File::open(&enc_file.path)
-        .map_err(|msg| format!("Error opening file {}: {msg}", &enc_file.path))?;
+    let mut src_file_handle = File::open(&enc_file.path).map_err(|msg| {
+        format!(
+            "Error opening file {}: {msg}",
+            &enc_file.path.to_string_lossy()
+        )
+    })?;
     src_file_handle
         .seek(Start(enc_file.data_offset as u64))
         .map_err(|msg| {

@@ -10,3 +10,6 @@ secure-string = "0.3.0"
 cryptostream = "0.3.2"
 thiserror = "2.0.16"
 constcat = "0.6.1"
+
+[dev-dependencies]
+tempfile = "3.23.0"

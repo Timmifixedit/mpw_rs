@@ -30,7 +30,7 @@ pub struct VaultData {
 }
 
 pub struct EncryptedFile {
-    pub path: String,
+    pub path: std::path::PathBuf,
     pub master_iv: AesIV,
     pub iv: AesIV,
     pub cypher_key: Vec<u8>,
