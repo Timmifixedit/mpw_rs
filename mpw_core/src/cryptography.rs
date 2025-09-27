@@ -321,7 +321,6 @@ impl FileHeader {
     }
 }
 
-
 // utility
 
 pub mod util {
@@ -386,7 +385,6 @@ pub mod util {
     }
 }
 
-
 // main methods
 
 /// Generates an AES encryption key derived from a given password and salt using the PBKDF2 algorithm.
@@ -433,7 +431,7 @@ pub fn generate_key_from_password(password: &SecureString, salt: &Salt) -> AesKe
 /// # Errors
 ///
 /// This function may return the following errors:
-/// * `InvalidHeader::Format` - If the `cipher_master_key` length in `vault_data` is not exactly 48 bytes. TODO!!
+/// * `MpwError::InvalidKeyLength` - If the decrypted key has not the expected length.
 /// * `MpwError::WrongPassword` - If the master password provided is incorrect.
 /// * `MpwError::Cryptography` - For other decryption-specific errors encountered during the process.
 ///
@@ -452,25 +450,19 @@ pub fn generate_key_from_password(password: &SecureString, salt: &Salt) -> AesKe
 /// }
 /// ```
 pub fn get_master_key(master_pw: SecureString, vault_data: &VaultData) -> error::Result<AesKey> {
-    type HErr = error::InvalidHeader;
-    let (cipher_key, rem) = vault_data.cipher_master_key.as_chunks::<48>();
-    if cipher_key.len() != 1 || rem.len() != 0 {
-        return HErr::Format {
-            expected: concat!(48, " bytes of encrypted master key"),
-            found: vault_data.cipher_master_key.len().to_string(),
-        }
-        .into();
-    }
-
-    let cipher_key: [u8; 48] = cipher_key[0];
     let key = generate_key_from_password(&master_pw, &vault_data.salt);
     match decrypt(
         Cipher::aes_256_cbc(),
         key.unsecure(),
         Some(&vault_data.iv),
-        &cipher_key,
+        &vault_data.cipher_master_key,
     ) {
-        Ok(key) => Ok(SecureArray::new(key.try_into().unwrap())),
+        Ok(key) => Ok(SecureArray::new(key.try_into().map_err(|e: Vec<u8>| {
+            MpwError::InvalidKeyLength {
+                expected: AES_KEY_LEN.value,
+                found: e.len(),
+            }
+        })?)),
         Err(msg) => {
             if msg
                 .errors()
