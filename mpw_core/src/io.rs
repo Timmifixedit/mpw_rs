@@ -5,14 +5,14 @@ use std::fs::File;
 use std::io::{BufReader, BufWriter, Read, Seek, Write};
 use std::path::Path;
 
-pub fn read_bytes(
-    file: &mut fs::File,
+pub fn read_bytes<T: Read + Seek>(
+    data: &mut T,
     len: usize,
     offset: std::io::SeekFrom,
 ) -> Result<Vec<u8>, std::io::Error> {
-    file.seek(offset)?;
+    data.seek(offset)?;
     let mut ret = vec![0u8; len];
-    file.read_exact(&mut ret)?;
+    data.read_exact(&mut ret)?;
     Ok(ret)
 }
 

@@ -9,7 +9,7 @@ use secure_string::{SecureArray, SecureString, SecureVec};
 use std::fmt::Display;
 use std::fs;
 use std::io::SeekFrom::{Current, Start};
-use std::io::{BufWriter, Read, Seek, Write};
+use std::io::{BufWriter, Cursor, Read, Seek, Write};
 use std::num::NonZeroU32;
 use std::path::Path;
 
@@ -69,6 +69,49 @@ impl From<FileHeader> for Vec<u8> {
     }
 }
 
+impl From<VaultData> for Vec<u8> {
+    fn from(mut value: VaultData) -> Self {
+        let mut ret = Vec::with_capacity(12 + value.iv.len() + value.cypher_master_key.len() + value.salt.len());
+        ret.extend(util::to_bytes(value.iv.len() as u32));
+        ret.extend(util::to_bytes(value.cypher_master_key.len() as u32));
+        ret.extend(value.iv);
+        ret.append(&mut value.cypher_master_key);
+        ret.extend(util::to_bytes(value.salt.len() as u32));
+        ret.extend(value.salt);
+        ret
+    }
+}
+
+impl TryFrom<&[u8]> for VaultData {
+    type Error = MpwError;
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        VaultData::new(Cursor::new(value))
+    }
+}
+
+impl TryFrom<Vec<u8>> for VaultData {
+    type Error = MpwError;
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+        VaultData::new(Cursor::new(value))
+    }
+}
+
+impl TryFrom<&[u8]> for FileHeader {
+    type Error = MpwError;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        FileHeader::new(Cursor::new(value))
+    }
+}
+
+impl TryFrom<Vec<u8>> for FileHeader {
+    type Error = MpwError;
+
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+        FileHeader::new(Cursor::new(value))
+    }
+}
+
 impl Display for VaultData {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let str = format!(
@@ -87,16 +130,16 @@ impl Display for VaultData {
 }
 
 impl VaultData {
-    pub fn new(path: &std::path::Path) -> error::Result<VaultData> {
+    pub fn new<T: Read + Seek>(mut data: T) -> error::Result<VaultData> {
         type HErr = error::InvalidHeader;
-        let mut file = fs::File::open(path).map_err(|e| {
+        /*let mut file = fs::File::open(path).map_err(|e| {
             std::io::Error::new(
                 e.kind(),
                 format!("Failed to open vault file: {}", e.to_string()),
             )
-        })?;
+        })?;*/
 
-        let header = io::read_bytes(&mut file, 8, Start(0)).map_err(HErr::Io)?;
+        let header = io::read_bytes(&mut data, 8, Start(0)).map_err(HErr::Io)?;
         let iv_length = util::from_bytes(header[0..4].try_into().unwrap()) as usize;
         if iv_length != AES_IV_LEN.value {
             return HErr::Format {
@@ -107,12 +150,12 @@ impl VaultData {
         }
 
         let key_length = util::from_bytes(header[4..8].try_into().unwrap()) as usize;
-        let iv = io::read_bytes(&mut file, AES_IV_LEN.value, Start(8))
+        let iv = io::read_bytes(&mut data, AES_IV_LEN.value, Start(8))
             .map_err(HErr::Io)?
             .try_into()
             .unwrap();
-        let cypher_key = io::read_bytes(&mut file, key_length, Current(0)).map_err(HErr::Io)?;
-        let salt_length = io::read_bytes(&mut file, 4, Current(0))
+        let cypher_key = io::read_bytes(&mut data, key_length, Current(0)).map_err(HErr::Io)?;
+        let salt_length = io::read_bytes(&mut data, 4, Current(0))
             .map_err(HErr::Io)?
             .try_into()
             .unwrap();
@@ -124,7 +167,7 @@ impl VaultData {
             }
             .into();
         }
-        let salt = io::read_bytes(&mut file, HMAC_SALT_LEN.value, Current(0))
+        let salt = io::read_bytes(&mut data, HMAC_SALT_LEN.value, Current(0))
             .map_err(HErr::Io)?
             .try_into()
             .unwrap();
@@ -137,10 +180,9 @@ impl VaultData {
 }
 
 impl FileHeader {
-    pub fn new(path: &Path) -> error::Result<FileHeader> {
+        pub fn new<T: Read + Seek>(mut data: T) -> error::Result<FileHeader> {
         type HErr = error::InvalidHeader;
-        let mut file = fs::File::open(&path)?;
-        let header = io::read_bytes(&mut file, 12, Start(0)).map_err(HErr::Io)?;
+        let header = io::read_bytes(&mut data, 12, Start(0)).map_err(HErr::Io)?;
         let master_iv_len = util::from_bytes(header[0..4].try_into().unwrap()) as usize;
         let iv_len = util::from_bytes(header[4..8].try_into().unwrap()) as usize;
         if master_iv_len != AES_IV_LEN.value || iv_len != AES_IV_LEN.value {
@@ -152,15 +194,15 @@ impl FileHeader {
         }
 
         let key_len = util::from_bytes(header[8..12].try_into().unwrap()) as usize;
-        let master_iv = io::read_bytes(&mut file, AES_IV_LEN.value, Start(12))
+        let master_iv = io::read_bytes(&mut data, AES_IV_LEN.value, Start(12))
             .map_err(HErr::Io)?
             .try_into()
             .unwrap();
-        let iv = io::read_bytes(&mut file, AES_IV_LEN.value, Current(0))
+        let iv = io::read_bytes(&mut data, AES_IV_LEN.value, Current(0))
             .map_err(HErr::Io)?
             .try_into()
             .unwrap();
-        let cypher_key = io::read_bytes(&mut file, key_len, Current(0)).map_err(HErr::Io)?;
+        let cypher_key = io::read_bytes(&mut data, key_len, Current(0)).map_err(HErr::Io)?;
         Ok(FileHeader {
             master_iv,
             iv,
@@ -235,6 +277,12 @@ mod util {
     }
 }
 
+pub fn generate_key_from_password(password: &SecureString, salt: &Salt) -> AesKey {
+    let mut key = AesKey::new([0u8; AES_KEY_LEN.value]);
+    derive(PBKDF2_ALGO.value, PBKDF2_ITERATIONS.value, salt, util::raw(password), key.unsecure_mut());
+    key
+}
+
 pub fn get_master_key(master_pw: SecureString, vault_data: &VaultData) -> error::Result<AesKey> {
     type HErr = error::InvalidHeader;
     let (cypher_key, rem) = vault_data.cypher_master_key.as_chunks::<48>();
@@ -247,17 +295,10 @@ pub fn get_master_key(master_pw: SecureString, vault_data: &VaultData) -> error:
     }
 
     let cypher_key: [u8; 48] = cypher_key[0];
-    let mut key = [0; AES_KEY_LEN.value];
-    derive(
-        PBKDF2_ALGO.value,
-        PBKDF2_ITERATIONS.value,
-        &vault_data.salt,
-        util::raw(&master_pw),
-        &mut key,
-    );
+    let key = generate_key_from_password(&master_pw, &vault_data.salt);
     match decrypt(
         Cipher::aes_256_cbc(),
-        &key,
+        key.unsecure(),
         Some(&vault_data.iv),
         &cypher_key,
     ) {
@@ -276,32 +317,19 @@ pub fn get_master_key(master_pw: SecureString, vault_data: &VaultData) -> error:
     }
 }
 
-pub fn decrypt_file(
+pub fn decrypt_text_from_file(
     path: &Path,
     master_key: &AesKey,
-) -> error::Result<SecureVec<u8>> {
-    let header = FileHeader::new(path)?;
-    let key = decrypt_file_header(&header, &master_key)?;
-    let cypher_data = io::read_all(path, Start(header.data_offset() as u64))?;
-    match decrypt(
-        Cipher::aes_256_cbc(),
-        key.unsecure(),
-        Some(&header.iv),
-        &cypher_data,
-    ) {
-        Ok(data) => Ok(SecureVec::from(data)),
-        Err(msg) => {
-            if msg
-                .errors()
-                .first()
-                .is_some_and(|e| e.code() == OPEN_SSL_BAD_DECRYPT)
-            {
-                return MpwError::WrongPassword.into();
-            }
+) -> error::Result<SecureString> {
+    let cypher_data = io::read_all(path, Start(0))?;
+    decrypt_text(&cypher_data, master_key)
+}
 
-            MpwError::Cryptography(msg.into()).into()
-        }
-    }
+pub fn encrypt_text_to_file(text: SecureString, path: &Path, master_key: &AesKey) -> error::Result<()> {
+    let cypher_text = encrypt_text(text, master_key)?;
+    let mut file = fs::File::create(path)?;
+    file.write_all(&cypher_text)?;
+    Ok(())
 }
 
 pub fn generate_file_header(master_key: &AesKey) -> error::Result<(FileHeader, AesKey, AesIV)> {
@@ -339,6 +367,19 @@ pub fn encrypt_text(data: SecureString, master_key: &AesKey) -> error::Result<Ve
     let mut raw: Vec<u8> = header.into();
     raw.append(&mut encrypted_data);
     Ok(raw)
+}
+
+pub fn decrypt_text(data: &[u8], master_key: &AesKey) -> error::Result<SecureString> {
+    let header = FileHeader::try_from(data)?;
+    let key = decrypt_file_header(&header, master_key)?;
+    let cypher_data = &data[header.data_offset()..];
+    let decrypted_data = decrypt(
+        Cipher::aes_256_cbc(),
+        key.unsecure(),
+        Some(&header.iv),
+        cypher_data,
+    )?;
+    Ok(SecureString::from(String::from_utf8(decrypted_data)?))
 }
 
 pub fn crypto_write<Source, Dest>(

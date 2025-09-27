@@ -44,8 +44,10 @@ fn run() -> Result<(), AppError> {
         return Err(format!("The path {} does not exist", pw_file.to_string_lossy()).into());
     }
 
-    let pw_header = crypt::FileHeader::new(pw_file)?;
-    let vault_file = crypt::VaultData::new(vault_file)?;
+    let  f = File::open(pw_file).map_err(|e|AppError::Simple(e.to_string()))?;
+    let pw_header = crypt::FileHeader::new(f)?;
+    let f = File::open(vault_file).map_err(|e|AppError::Simple(e.to_string()))?;
+    let vault_file = crypt::VaultData::new(f)?;
     println!("{vault_file}");
     println!();
     println!("{pw_header}");
@@ -56,12 +58,8 @@ fn run() -> Result<(), AppError> {
     master_pw = master_pw.trim().to_string();
     let master_pw = SecureString::from(master_pw);
     let master_key = crypt::get_master_key(master_pw, &vault_file)?;
-    let pw = crypt::decrypt_file(&pw_file, &master_key)?;
-
-    match String::from_utf8(pw.unsecure().to_vec()) {
-        Ok(data) => println!("{}", data),
-        Err(msg) => return Err(msg.to_string().into()),
-    }
+    let pw = crypt::decrypt_text_from_file(&pw_file, &master_key)?;
+    println!("{}", pw.unsecure());
 
     println!("Enter data to encrypt:");
     let mut input = String::new();
@@ -91,7 +89,8 @@ fn run() -> Result<(), AppError> {
     stdin()
         .read_line(&mut String::new())
         .map_err(|x| x.to_string())?;
-    let enc_file = crypt::FileHeader::new(dest_file)?;
+    let f = File::open(dest_file).map_err(|e|AppError::Simple(e.to_string()))?;
+    let enc_file = crypt::FileHeader::new(f)?;
     let key = match decrypt(
         Cipher::aes_256_cbc(),
         master_key.unsecure(),

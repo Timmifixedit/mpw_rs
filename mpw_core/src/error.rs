@@ -54,6 +54,8 @@ pub enum MpwError {
         expected: usize,
         found: usize,
     },
+    #[error("Invalid utf8: {0}")]
+    InvalidUtf8(#[from] std::string::FromUtf8Error),
 }
 
 pub type Result<T> = std::result::Result<T, MpwError>;
