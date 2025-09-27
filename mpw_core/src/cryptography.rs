@@ -132,12 +132,6 @@ impl Display for VaultData {
 impl VaultData {
     pub fn new<T: Read + Seek>(mut data: T) -> error::Result<VaultData> {
         type HErr = error::InvalidHeader;
-        /*let mut file = fs::File::open(path).map_err(|e| {
-            std::io::Error::new(
-                e.kind(),
-                format!("Failed to open vault file: {}", e.to_string()),
-            )
-        })?;*/
 
         let header = io::read_bytes(&mut data, 8, Start(0)).map_err(HErr::Io)?;
         let iv_length = util::from_bytes(header[0..4].try_into().unwrap()) as usize;
@@ -416,4 +410,117 @@ where
     io::transfer_data(source, &mut cs)?;
     cs.finish()?;
     Ok(())
+}
+
+#[cfg(test)]
+mod test {
+    use std::ffi::c_long;
+    use super::*;
+    use crate::cryptography::util::{generate_iv, generate_key, generate_salt};
+    use std::io::Cursor;
+    use tempfile::NamedTempFile;
+
+    #[test]
+    fn test_util_to_bytes() {
+        if USE_LITTLE_ENDIAN.value {
+            assert_eq!(util::to_bytes(612352), [0x00, 0x58, 0x09, 0x00]);
+        } else {
+            assert_eq!(util::to_bytes(612352), [0x00, 0x09, 0x58, 0x00]);
+        }
+    }
+
+    #[test]
+    fn test_util_from_bytes() {
+        if USE_LITTLE_ENDIAN.value {
+            assert_eq!(util::from_bytes([0x00, 0x58, 0x09, 0x00]), 612352);
+        } else {
+            assert_eq!(util::from_bytes([0x00, 0x09, 0x58, 0x00]), 612352);
+        }
+    }
+
+    #[test]
+    fn test_crypto_write_read_round_trip() {
+        let original = (17..233).collect::<Vec<u8>>();
+        let mut data = original.clone();
+        let cursor = Cursor::new(&mut data);
+        let mut dest = Vec::new();
+        let key = util::generate_key();
+        let iv = util::generate_iv();
+        crypto_write(cursor, &mut dest, &key, &iv).unwrap();
+        // crypto write should zero out the original sensitive data
+        assert!(&data.iter().all(|x| *x == 0u8));
+        data.clear();
+        crypto_read(Cursor::new(dest), &mut data, &key, &iv).unwrap();
+        assert_eq!(data, original);
+    }
+
+    #[test]
+    fn test_vault_data_conversion_round_trip() {
+        let salt = generate_salt();
+        let iv = generate_iv();
+        let cypher_key = (1..17).collect::<Vec<u8>>();
+        let vault_data = VaultData{salt, iv, cypher_master_key: cypher_key.clone()};
+        let serialized: Vec<u8> = vault_data.into();
+        let rt: VaultData = serialized.try_into().unwrap();
+        assert_eq!(rt.salt, salt);
+        assert_eq!(rt.iv, iv);
+        assert_eq!(rt.cypher_master_key, cypher_key);
+    }
+
+    #[test]
+    fn test_header_conversion_round_trip() {
+        let m_iv = generate_iv();
+        let f_iv = generate_iv();
+        let c_key = (1..17).collect::<Vec<u8>>();
+        let header = FileHeader{master_iv: m_iv, iv: f_iv, cypher_key: c_key.clone()};
+        let serialized: Vec<u8> = header.into();
+        let rt: FileHeader = serialized.try_into().unwrap();
+        assert_eq!(rt.master_iv, m_iv);
+        assert_eq!(rt.iv, f_iv);
+        assert_eq!(rt.cypher_key, c_key);
+    }
+
+    #[test]
+    fn test_generate_decrypt_header_round_trip() {
+        let master_key = generate_key();
+        let (header, file_key, file_iv) = generate_file_header(&master_key).unwrap();
+        assert_eq!(header.iv, file_iv);
+        let file_key_rt = decrypt_file_header(&header, &master_key).unwrap();
+        assert_eq!(file_key, file_key_rt);
+    }
+
+    #[test]
+    fn test_text_encryption_round_trip() {
+        let master_key = generate_key();
+        let text = "Hello World!";
+        let encrypted = encrypt_text(text.into(), &master_key).unwrap();
+        let decrypted = decrypt_text(&encrypted, &master_key).unwrap();
+        assert_eq!(text, decrypted.unsecure());
+    }
+
+    #[test]
+    fn test_text_to_file_round_trip() {
+        let master_key = generate_key();
+        let text = "Hello World!";
+        let file = NamedTempFile::new().unwrap();
+        encrypt_text_to_file(text.into(), file.path(), &master_key).unwrap();
+        let decrypted = decrypt_text_from_file(file.path(), &master_key).unwrap();
+        assert_eq!(text, decrypted.unsecure());
+    }
+
+    #[test]
+    fn test_get_master_key() {
+        let master_pw: SecureString = "password".into();
+        let salt = generate_salt();
+        let master_iv = generate_iv();
+        let master_key = generate_key();
+        let cypher_master_key = encrypt(Cipher::aes_256_cbc(), generate_key_from_password(&master_pw, &salt).unsecure(), Some(&master_iv), master_key.unsecure()).unwrap();
+        let vault_data = VaultData {
+            iv: master_iv,
+            cypher_master_key,
+            salt,
+        };
+        let key = get_master_key(master_pw, &vault_data).unwrap();
+        assert_eq!(key, master_key);
+    }
 }
