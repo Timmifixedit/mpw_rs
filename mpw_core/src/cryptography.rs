@@ -30,14 +30,14 @@ pub type AesKey = SecureArray<u8, { AES_KEY_LEN.value }>;
 
 pub struct VaultData {
     iv: AesIV,
-    cypher_master_key: Vec<u8>,
+    cipher_master_key: Vec<u8>,
     salt: Salt,
 }
 
 pub struct FileHeader {
     pub master_iv: AesIV,
     pub iv: AesIV,
-    pub cypher_key: Vec<u8>,
+    pub cipher_key: Vec<u8>,
 }
 
 // Traits
@@ -50,8 +50,8 @@ impl Display for VaultData {
              Salt {:02X?} (len {})",
             self.iv,
             self.iv.len(),
-            self.cypher_master_key,
-            self.cypher_master_key.len(),
+            self.cipher_master_key,
+            self.cipher_master_key.len(),
             self.salt,
             self.salt.len()
         );
@@ -62,12 +62,12 @@ impl Display for VaultData {
 impl From<VaultData> for Vec<u8> {
     fn from(mut value: VaultData) -> Self {
         let mut ret = Vec::with_capacity(
-            12 + value.iv.len() + value.cypher_master_key.len() + value.salt.len(),
+            12 + value.iv.len() + value.cipher_master_key.len() + value.salt.len(),
         );
         ret.extend(util::to_bytes(value.iv.len() as u32));
-        ret.extend(util::to_bytes(value.cypher_master_key.len() as u32));
+        ret.extend(util::to_bytes(value.cipher_master_key.len() as u32));
         ret.extend(value.iv);
-        ret.append(&mut value.cypher_master_key);
+        ret.append(&mut value.cipher_master_key);
         ret.extend(util::to_bytes(value.salt.len() as u32));
         ret.extend(value.salt);
         ret
@@ -101,8 +101,8 @@ impl Display for FileHeader {
             self.master_iv.len(),
             self.iv,
             self.iv.len(),
-            self.cypher_key,
-            self.cypher_key.len(),
+            self.cipher_key,
+            self.cipher_key.len(),
             self.data_offset()
         );
         write!(f, "{}", str)
@@ -114,10 +114,10 @@ impl From<FileHeader> for Vec<u8> {
         let mut ret = Vec::new();
         ret.extend(util::to_bytes(value.master_iv.len() as u32));
         ret.extend(util::to_bytes(value.iv.len() as u32));
-        ret.extend(util::to_bytes(value.cypher_key.len() as u32));
+        ret.extend(util::to_bytes(value.cipher_key.len() as u32));
         ret.extend(value.master_iv);
         ret.extend(value.iv);
-        ret.append(&mut value.cypher_key);
+        ret.append(&mut value.cipher_key);
         ret
     }
 }
@@ -158,7 +158,7 @@ impl VaultData {
             .map_err(HErr::Io)?
             .try_into()
             .unwrap();
-        let cypher_key = io::read_bytes(&mut data, key_length, Current(0)).map_err(HErr::Io)?;
+        let cipher_key = io::read_bytes(&mut data, key_length, Current(0)).map_err(HErr::Io)?;
         let salt_length = io::read_bytes(&mut data, 4, Current(0))
             .map_err(HErr::Io)?
             .try_into()
@@ -177,7 +177,7 @@ impl VaultData {
             .unwrap();
         Ok(VaultData {
             iv,
-            cypher_master_key: cypher_key,
+            cipher_master_key: cipher_key,
             salt,
         })
     }
@@ -206,16 +206,16 @@ impl FileHeader {
             .map_err(HErr::Io)?
             .try_into()
             .unwrap();
-        let cypher_key = io::read_bytes(&mut data, key_len, Current(0)).map_err(HErr::Io)?;
+        let cipher_key = io::read_bytes(&mut data, key_len, Current(0)).map_err(HErr::Io)?;
         Ok(FileHeader {
             master_iv,
             iv,
-            cypher_key,
+            cipher_key,
         })
     }
 
     pub fn data_offset(&self) -> usize {
-        12 + 2 * AES_IV_LEN.value + self.cypher_key.len()
+        12 + 2 * AES_IV_LEN.value + self.cipher_key.len()
     }
 }
 
@@ -301,22 +301,22 @@ pub fn generate_key_from_password(password: &SecureString, salt: &Salt) -> AesKe
 
 pub fn get_master_key(master_pw: SecureString, vault_data: &VaultData) -> error::Result<AesKey> {
     type HErr = error::InvalidHeader;
-    let (cypher_key, rem) = vault_data.cypher_master_key.as_chunks::<48>();
-    if cypher_key.len() != 1 || rem.len() != 0 {
+    let (cipher_key, rem) = vault_data.cipher_master_key.as_chunks::<48>();
+    if cipher_key.len() != 1 || rem.len() != 0 {
         return HErr::Format {
             expected: concat!(48, " bytes of encrypted master key"),
-            found: vault_data.cypher_master_key.len().to_string(),
+            found: vault_data.cipher_master_key.len().to_string(),
         }
         .into();
     }
 
-    let cypher_key: [u8; 48] = cypher_key[0];
+    let cipher_key: [u8; 48] = cipher_key[0];
     let key = generate_key_from_password(&master_pw, &vault_data.salt);
     match decrypt(
         Cipher::aes_256_cbc(),
         key.unsecure(),
         Some(&vault_data.iv),
-        &cypher_key,
+        &cipher_key,
     ) {
         Ok(key) => Ok(SecureArray::new(key.try_into().unwrap())),
         Err(msg) => {
@@ -334,8 +334,8 @@ pub fn get_master_key(master_pw: SecureString, vault_data: &VaultData) -> error:
 }
 
 pub fn decrypt_text_from_file(path: &Path, master_key: &AesKey) -> error::Result<SecureString> {
-    let cypher_data = io::read_all(path, Start(0))?;
-    decrypt_text(&cypher_data, master_key)
+    let cipher_data = io::read_all(path, Start(0))?;
+    decrypt_text(&cipher_data, master_key)
 }
 
 pub fn encrypt_text_to_file(
@@ -343,9 +343,9 @@ pub fn encrypt_text_to_file(
     path: &Path,
     master_key: &AesKey,
 ) -> error::Result<()> {
-    let cypher_text = encrypt_text(text, master_key)?;
+    let cipher_text = encrypt_text(text, master_key)?;
     let mut file = fs::File::create(path)?;
-    file.write_all(&cypher_text)?;
+    file.write_all(&cipher_text)?;
     Ok(())
 }
 
@@ -363,7 +363,7 @@ pub fn generate_file_header(master_key: &AesKey) -> error::Result<(FileHeader, A
         FileHeader {
             master_iv,
             iv: file_iv,
-            cypher_key: encrypted_key,
+            cipher_key: encrypted_key,
         },
         file_key,
         file_iv,
@@ -375,7 +375,7 @@ pub fn decrypt_file_header(header: &FileHeader, master_key: &AesKey) -> error::R
         Cipher::aes_256_cbc(),
         master_key.unsecure(),
         Some(&header.master_iv),
-        &header.cypher_key,
+        &header.cipher_key,
     )
     .map(SecureVec::new)?;
     Ok(util::to_key(key)?)
@@ -397,12 +397,12 @@ pub fn encrypt_text(data: SecureString, master_key: &AesKey) -> error::Result<Ve
 pub fn decrypt_text(data: &[u8], master_key: &AesKey) -> error::Result<SecureString> {
     let header = FileHeader::try_from(data)?;
     let key = decrypt_file_header(&header, master_key)?;
-    let cypher_data = &data[header.data_offset()..];
+    let cipher_data = &data[header.data_offset()..];
     let decrypted_data = decrypt(
         Cipher::aes_256_cbc(),
         key.unsecure(),
         Some(&header.iv),
-        cypher_data,
+        cipher_data,
     )?;
     Ok(SecureString::from(String::from_utf8(decrypted_data)?))
 }
@@ -447,7 +447,6 @@ where
 mod test {
     use super::*;
     use crate::cryptography::util::{generate_iv, generate_key, generate_salt};
-    use std::ffi::c_long;
     use std::io::Cursor;
     use tempfile::NamedTempFile;
 
@@ -489,17 +488,17 @@ mod test {
     fn test_vault_data_conversion_round_trip() {
         let salt = generate_salt();
         let iv = generate_iv();
-        let cypher_key = (1..17).collect::<Vec<u8>>();
+        let cipher_key = (1..17).collect::<Vec<u8>>();
         let vault_data = VaultData {
             salt,
             iv,
-            cypher_master_key: cypher_key.clone(),
+            cipher_master_key: cipher_key.clone(),
         };
         let serialized: Vec<u8> = vault_data.into();
         let rt: VaultData = serialized.try_into().unwrap();
         assert_eq!(rt.salt, salt);
         assert_eq!(rt.iv, iv);
-        assert_eq!(rt.cypher_master_key, cypher_key);
+        assert_eq!(rt.cipher_master_key, cipher_key);
     }
 
     #[test]
@@ -510,13 +509,13 @@ mod test {
         let header = FileHeader {
             master_iv: m_iv,
             iv: f_iv,
-            cypher_key: c_key.clone(),
+            cipher_key: c_key.clone(),
         };
         let serialized: Vec<u8> = header.into();
         let rt: FileHeader = serialized.try_into().unwrap();
         assert_eq!(rt.master_iv, m_iv);
         assert_eq!(rt.iv, f_iv);
-        assert_eq!(rt.cypher_key, c_key);
+        assert_eq!(rt.cipher_key, c_key);
     }
 
     #[test]
@@ -553,7 +552,7 @@ mod test {
         let salt = generate_salt();
         let master_iv = generate_iv();
         let master_key = generate_key();
-        let cypher_master_key = encrypt(
+        let cipher_master_key = encrypt(
             Cipher::aes_256_cbc(),
             generate_key_from_password(&master_pw, &salt).unsecure(),
             Some(&master_iv),
@@ -562,7 +561,7 @@ mod test {
         .unwrap();
         let vault_data = VaultData {
             iv: master_iv,
-            cypher_master_key,
+            cipher_master_key,
             salt,
         };
         let key = get_master_key(master_pw, &vault_data).unwrap();

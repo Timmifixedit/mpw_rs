@@ -95,7 +95,7 @@ fn run() -> Result<(), AppError> {
         Cipher::aes_256_cbc(),
         master_key.unsecure(),
         Some(&enc_file.master_iv),
-        &enc_file.cypher_key,
+        &enc_file.cipher_key,
     ) {
         Ok(key) => AesKey::from(key.as_chunks::<32>().0[0]),
         Err(msg) => return Err(MpwError::Cryptography(msg.into()).into()),
