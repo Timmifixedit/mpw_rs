@@ -50,10 +50,7 @@ pub enum MpwError {
     #[error("Wrong password")]
     WrongPassword,
     #[error("Invalid key length: {expected} vs {found} bytes")]
-    InvalidKeyLength {
-        expected: usize,
-        found: usize,
-    },
+    InvalidKeyLength { expected: usize, found: usize },
     #[error("Invalid utf8: {0}")]
     InvalidUtf8(#[from] std::string::FromUtf8Error),
 }

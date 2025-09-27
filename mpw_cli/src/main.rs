@@ -44,9 +44,9 @@ fn run() -> Result<(), AppError> {
         return Err(format!("The path {} does not exist", pw_file.to_string_lossy()).into());
     }
 
-    let  f = File::open(pw_file).map_err(|e|AppError::Simple(e.to_string()))?;
+    let f = File::open(pw_file).map_err(|e| AppError::Simple(e.to_string()))?;
     let pw_header = crypt::FileHeader::new(f)?;
-    let f = File::open(vault_file).map_err(|e|AppError::Simple(e.to_string()))?;
+    let f = File::open(vault_file).map_err(|e| AppError::Simple(e.to_string()))?;
     let vault_file = crypt::VaultData::new(f)?;
     println!("{vault_file}");
     println!();
@@ -89,7 +89,7 @@ fn run() -> Result<(), AppError> {
     stdin()
         .read_line(&mut String::new())
         .map_err(|x| x.to_string())?;
-    let f = File::open(dest_file).map_err(|e|AppError::Simple(e.to_string()))?;
+    let f = File::open(dest_file).map_err(|e| AppError::Simple(e.to_string()))?;
     let enc_file = crypt::FileHeader::new(f)?;
     let key = match decrypt(
         Cipher::aes_256_cbc(),
@@ -100,12 +100,8 @@ fn run() -> Result<(), AppError> {
         Ok(key) => AesKey::from(key.as_chunks::<32>().0[0]),
         Err(msg) => return Err(MpwError::Cryptography(msg.into()).into()),
     };
-    let mut src_file_handle = File::open(dest_file).map_err(|msg| {
-        format!(
-            "Error opening file {}: {msg}",
-            dest_file.to_string_lossy()
-        )
-    })?;
+    let mut src_file_handle = File::open(dest_file)
+        .map_err(|msg| format!("Error opening file {}: {msg}", dest_file.to_string_lossy()))?;
     src_file_handle
         .seek(Start(enc_file.data_offset() as u64))
         .map_err(|msg| {
