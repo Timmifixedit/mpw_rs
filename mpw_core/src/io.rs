@@ -5,6 +5,15 @@ use std::fs::File;
 use std::io::{BufReader, BufWriter, Read, Seek, Write};
 use std::path::Path;
 
+/// Reads the exact number of specified bytes from the given offset from a stream.
+/// # Parameters
+/// * `data`: source data stream
+/// * `len`: number of bytes to read
+/// * `offset`: offset from which to start reading
+/// # Returns
+/// Vector containing the read bytes
+/// # Errors
+/// IO errors while reading from the stream
 pub fn read_bytes<T: Read + Seek>(
     data: &mut T,
     len: usize,
@@ -16,6 +25,15 @@ pub fn read_bytes<T: Read + Seek>(
     Ok(ret)
 }
 
+/// Reads the contents of a file from the given offset.
+/// # Parameters
+/// * `file`: path to the file to read
+/// * `offset`: offset from which to start reading
+/// # Returns
+/// Vector containing the read bytes
+/// # Errors
+/// IO errors while reading from the file
+/// # Example
 pub fn read_all(file: &Path, offset: std::io::SeekFrom) -> Result<Vec<u8>, std::io::Error> {
     let mut file_handle = File::open(file).map_err(|e| {
         std::io::Error::new(e.kind(), format!("Failed to open file: {}", e.to_string()))
@@ -27,6 +45,15 @@ pub fn read_all(file: &Path, offset: std::io::SeekFrom) -> Result<Vec<u8>, std::
     Ok(ret)
 }
 
+/// Transfers data from a source to a destination.
+/// # Parameters
+/// * `source`: source data stream
+/// * `dest`: destination data stream
+/// # Returns
+/// Tuple containing the source data stream and the number of bytes transferred.
+/// # Errors
+/// IO errors while reading from the source or writing to the destination
+/// # Example
 pub fn transfer_data<Source: Read, Dest: Write>(
     source: Source,
     dest: &mut Dest,
