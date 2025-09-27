@@ -57,23 +57,17 @@ mod test {
     use std::io::Cursor;
     use tempfile::NamedTempFile;
 
-    struct TestFile {
-        tmp_file: NamedTempFile,
-        gt_data: Vec<u8>,
-    }
-
-    fn setup() -> Result<TestFile, std::io::Error> {
-        let tmp_file = NamedTempFile::new()?;
-        let mut file = File::create(tmp_file.path())?;
-        let gt_data: Vec<u8> = (0u8..100).collect();
-        file.write_all(&gt_data)?;
-        Ok(TestFile { tmp_file, gt_data })
+    fn setup() -> Result<NamedTempFile, std::io::Error> {
+        let mut tmp_file = NamedTempFile::new()?;
+        let data: Vec<u8> = (0u8..100).collect();
+        tmp_file.write_all(&data)?;
+        Ok(tmp_file)
     }
 
     #[test]
     fn test_read_bytes() -> Result<(), std::io::Error> {
         let data = setup()?;
-        let mut file = File::open(&data.tmp_file.path())?;
+        let mut file = File::open(data.path())?;
         let res = read_bytes(&mut file, 4, std::io::SeekFrom::Start(4))?;
         assert_eq!(res, (4u8..8).collect::<Vec<u8>>());
         Ok(())
@@ -82,7 +76,7 @@ mod test {
     #[test]
     fn test_read_all() -> Result<(), std::io::Error> {
         let data = setup()?;
-        let result = read_all(&data.tmp_file.path(), std::io::SeekFrom::Start(17))?;
+        let result = read_all(data.path(), std::io::SeekFrom::Start(17))?;
         assert_eq!(result, (17u8..100).collect::<Vec<u8>>());
         Ok(())
     }
