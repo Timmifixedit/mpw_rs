@@ -22,18 +22,30 @@ define!(AES_IV_LEN: usize = 16);
 define!(AES_KEY_LEN: usize = 32);
 define!(HMAC_SALT_LEN: usize = 8);
 const OPEN_SSL_BAD_DECRYPT: u64 = 0x1C800064;
-type AesIV = [u8; AES_IV_LEN.value];
-type Salt = [u8; HMAC_SALT_LEN.value];
+pub type AesIV = [u8; AES_IV_LEN.value];
+pub type Salt = [u8; HMAC_SALT_LEN.value];
 pub type AesKey = SecureArray<u8, { AES_KEY_LEN.value }>;
 
 // Structures
 
+/// Represents the contents of the main vault file, i.e. the master key.
+///
+/// # Members
+/// * iv: AES initialization vector
+/// * cipher_master_key: Cipher text master key
+/// * salt: Salt for password derive function
 pub struct VaultData {
-    iv: AesIV,
-    cipher_master_key: Vec<u8>,
-    salt: Salt,
+    pub iv: AesIV,
+    pub cipher_master_key: Vec<u8>,
+    pub salt: Salt,
 }
 
+/// Represents the header of an arbitrary encrypted file.
+///
+/// # Members
+/// * master_iv: AES initialization vector used in the encryption of this file's key
+/// * iv: AES initialization vector used in the encryption of this file's contents
+/// * cipher_key: Cipher text file key used to encrypt this file's contents
 pub struct FileHeader {
     pub master_iv: AesIV,
     pub iv: AesIV,
@@ -140,6 +152,54 @@ impl TryFrom<Vec<u8>> for FileHeader {
 
 // Structure method implementations
 impl VaultData {
+    /// Constructs a new `VaultData` instance by parsing the provided data stream.
+    ///
+    /// This function reads and validates the binary data from the provided input stream
+    /// to create a `VaultData` instance. It verifies the integrity of the data by
+    /// checking the lengths of the initialization vector (IV) and the salt against
+    /// their expected sizes. If these validations fail or an I/O error occurs, an error
+    /// is returned.
+    ///
+    /// # Type Parameters
+    /// - `T`: A type that implements both the `Read` and `Seek` traits, used to
+    ///        read and navigate through the input data stream.
+    ///
+    /// # Arguments
+    /// - `data`: A mutable instance of a type that implements `Read + Seek`. This stream
+    ///           should contain the serialized vault data in the appropriate format.
+    ///
+    /// # Returns
+    /// * Returns `VaultData` if the data parsing and validations are successful.
+    ///
+    /// # Errors
+    /// - `error::InvalidHeader::Format`: If the length of the IV or salt from the input
+    ///    data does not match the expected length.
+    /// - `error::InvalidHeader::Io`: If there are issues reading from the input stream.
+    ///
+    /// # Expected Input Format (endian is specified by `USE_LITTLE_ENDIAN.value`)
+    /// The input stream is expected to conform to the following binary format:
+    /// 1. 4 bytes encoding the length of the IV
+    /// 2. 4 bytes encoding the length of the cipher key.
+    /// 3. Initialization vector (IV): Fixed length, as defined by `AES_IV_LEN.value`.
+    /// 4. Cipher key: Variable length, specified in the header.
+    /// 5. Salt length: 4 bytes.
+    /// 6. Salt: Fixed length, as defined by `HMAC_SALT_LEN.value`.
+    ///
+    /// # Example
+    /// ```rust
+    /// use std::io::Cursor;
+    /// use mpw_core::cryptography::VaultData;
+    ///
+    /// let fake_data = Cursor::new(vec![/* Serialized binary data */]);
+    /// match VaultData::new(fake_data) {
+    ///     Ok(vault_data) => println!("VaultData initialized successfully!"),
+    ///     Err(e) => eprintln!("Failed to initialize VaultData: {:?}", e),
+    /// }
+    /// ```
+    ///
+    /// # See Also
+    /// - `VaultData`: The struct this function initializes.
+    /// - `error::InvalidHeader`: Possible error variants returned by this function.
     pub fn new<T: Read + Seek>(mut data: T) -> error::Result<VaultData> {
         type HErr = error::InvalidHeader;
 
@@ -184,6 +244,48 @@ impl VaultData {
 }
 
 impl FileHeader {
+    /// Constructs a new `FileHeader` by reading and parsing data from an input source that
+    /// implements the `Read` and `Seek` traits.
+    ///
+    /// # Type Parameters
+    /// - `T`: A type that implements both the `Read` and `Seek` traits, used to
+    ///        read and navigate through the input data stream.
+    ///
+    /// # Parameters
+    /// - `data`: An input source that contains the binary data needed for parsing the file header.
+    ///
+    /// # Returns
+    /// - `FileHeader` if the data is successfully read and conforms to the expected structure.
+    ///
+    /// # Errors
+    /// Returns an `error::InvalidHeader` in the following cases:
+    /// - If the `master_iv_len` or `iv_len` in the header does not match the expected `AES_IV_LEN.value`.
+    /// - If the IO operation fails while reading data from the input.
+    ///
+    /// # File Header Structure
+    /// The method reads and validates the following fields from the provided input source:
+    /// - A 12-byte header containing:
+    ///   - Bytes [0..4]: `master_iv_len` (length of the master IV).
+    ///   - Bytes [4..8]: `iv_len` (length of the IV).
+    ///   - Bytes [8..12]: `key_len` (length of the cipher key).
+    /// - `master_iv`: A sequence of bytes of length `AES_IV_LEN.value` starting at byte 12.
+    /// - `iv`: A sequence of bytes of length `AES_IV_LEN.value`, following the `master_iv`.
+    /// - `cipher_key`: A sequence of bytes of length `key_len`, following the IV.
+    ///
+    /// # Validations
+    /// - `master_iv_len` and `iv_len` must be equal to `AES_IV_LEN.value`.
+    /// - Proper handling of IO errors and slice conversion is applied.
+    ///
+    /// # Example
+    /// ```
+    /// use std::io::Cursor;
+    /// use mpw_core::cryptography::FileHeader;
+    ///
+    /// let cursor = Cursor::new(vec![/* Serialized binary data */]);
+    /// if let Ok(header) = FileHeader::new(cursor) {
+    ///     // ...
+    /// }
+    /// ```
     pub fn new<T: Read + Seek>(mut data: T) -> error::Result<FileHeader> {
         type HErr = error::InvalidHeader;
         let header = io::read_bytes(&mut data, 12, Start(0)).map_err(HErr::Io)?;
@@ -222,7 +324,7 @@ impl FileHeader {
 
 // utility
 
-mod util {
+pub mod util {
     use crate::cryptography::{
         AES_IV_LEN, AES_KEY_LEN, AesIV, AesKey, HMAC_SALT_LEN, Salt, USE_LITTLE_ENDIAN,
     };
@@ -287,6 +389,23 @@ mod util {
 
 // main methods
 
+/// Generates an AES encryption key derived from a given password and salt using the PBKDF2 algorithm.
+///
+/// # Parameters
+/// * `password` - A reference to a `SecureString` containing the password from which the key will be derived.
+/// * `salt` - A reference to a `Salt` used in the key derivation process.
+///
+/// # Returns
+/// * An `AesKey` that represents the derived key suitable for encryption or decryption operations.
+///
+/// # Example
+/// ```
+/// use mpw_core::cryptography::generate_key_from_password;
+/// use mpw_core::cryptography::util::generate_salt;
+/// let pw = "secure password".into();
+/// let salt = generate_salt();
+/// let key = generate_key_from_password(&pw, &salt);
+/// ```
 pub fn generate_key_from_password(password: &SecureString, salt: &Salt) -> AesKey {
     let mut key = AesKey::new([0u8; AES_KEY_LEN.value]);
     derive(
@@ -299,6 +418,39 @@ pub fn generate_key_from_password(password: &SecureString, salt: &Salt) -> AesKe
     key
 }
 
+/// Retrieves the vault master key by decrypting the encrypted key stored in the provided vault data.
+///
+/// # Arguments
+///
+/// * `master_pw` - A secure string containing the master password.
+/// * `vault_data` - A reference to the `VaultData` structure.
+///
+/// # Returns
+///
+/// This function returns a `Result` containing:
+/// * A ready-to-use `AesKey` upon successful decryption
+///
+/// # Errors
+///
+/// This function may return the following errors:
+/// * `InvalidHeader::Format` - If the `cipher_master_key` length in `vault_data` is not exactly 48 bytes. TODO!!
+/// * `MpwError::WrongPassword` - If the master password provided is incorrect.
+/// * `MpwError::Cryptography` - For other decryption-specific errors encountered during the process.
+///
+/// # Example
+/// ```
+/// use mpw_core::cryptography::{get_master_key, VaultData};
+/// # use mpw_core::cryptography::util::{generate_iv, generate_salt};
+///
+/// let master_pw = "your_master_password".into();
+/// # let salt = generate_salt();
+/// # let iv = generate_iv();
+/// # let cipher_master_key = vec![0u8; 48];
+/// let vault_data = VaultData{iv, cipher_master_key, salt};
+/// if let Ok(master_key) = get_master_key(master_pw, &vault_data) {
+///     //...
+/// }
+/// ```
 pub fn get_master_key(master_pw: SecureString, vault_data: &VaultData) -> error::Result<AesKey> {
     type HErr = error::InvalidHeader;
     let (cipher_key, rem) = vault_data.cipher_master_key.as_chunks::<48>();
@@ -333,11 +485,76 @@ pub fn get_master_key(master_pw: SecureString, vault_data: &VaultData) -> error:
     }
 }
 
+/// Decrypts and returns a secure string from an encrypted file.
+///
+/// This function reads the entire content of the file located at the given `path`,
+/// and attempts to decrypt it using the provided AES key (`master_key`).
+/// The decrypted output is returned as a `SecureString`.
+///
+/// # Arguments
+/// * `path` - A reference to a `Path` which specifies the location of the encrypted file.
+/// * `master_key` - A reference to an `AesKey` used to decrypt the file's content.
+///
+/// # Returns
+/// If successful, this function returns a `SecureString` containing the decrypted text.
+///
+/// # Errors
+/// This function will return an error in the following situations:
+/// - If the file at the specified `path` cannot be read.
+/// - If the file's content cannot be decrypted using the provided `master_key`.
+/// - UTF8 error is returned if the decrypted text contains invalid UTF8 characters.
+///
+/// # Note
+/// This method is only meant to be used for decrypting small text files as all the file's content
+/// is loaded into memory. For larger files of arbitrary content, use `crypto_read` instead.
+///
+/// # Examples
+///
+/// ```rust
+/// use std::path::Path;
+/// use mpw_core::cryptography::{decrypt_text_from_file, AesKey};
+/// # use mpw_core::cryptography::util::generate_key;
+///
+/// let path = Path::new("encrypted_file.enc");
+/// # let master_key = generate_key();
+/// if let Ok(text) = decrypt_text_from_file(&path, &master_key) {
+///     println!("Decrypted text: {}", text.unsecure());
+/// }
+/// ```
 pub fn decrypt_text_from_file(path: &Path, master_key: &AesKey) -> error::Result<SecureString> {
     let cipher_data = io::read_all(path, Start(0))?;
     decrypt_text(&cipher_data, master_key)
 }
 
+/// Encrypts the given text and writes it to a specified file.
+///
+/// # Parameters
+/// * `text` - A `SecureString` containing the plaintext data that needs to be encrypted.
+/// * `path` - A reference to a `Path` that specifies the file location to write the encrypted data.
+/// * `master_key` - A reference to an `AesKey` used for encryption.
+///
+/// # Returns
+/// * `Ok(())` - If the operation completes successfully, this function returns without error.
+///
+/// # Errors
+/// This function may fail for the following reasons:
+/// * If the encryption process fails.
+/// * If the file cannot be created at the specified path.
+/// * If an error occurs while writing the encrypted data to the file.
+///
+/// # Examples
+/// ```
+/// use mpw_core::cryptography::encrypt_text_to_file;
+/// use mpw_core::cryptography::util::generate_key;
+/// use std::path::Path;
+///
+/// let text = "Sensitive information".into();
+/// let path = Path::new("encrypted_data.enc");
+/// # let file = tempfile::NamedTempFile::new().unwrap();
+/// # let path = file.path();
+/// let master_key = generate_key();
+/// encrypt_text_to_file(text, &path, &master_key).unwrap();
+/// ```
 pub fn encrypt_text_to_file(
     text: SecureString,
     path: &Path,
@@ -349,6 +566,22 @@ pub fn encrypt_text_to_file(
     Ok(())
 }
 
+/// Generates the header for encrypted files.
+/// # Parameters
+/// * `master_key`: Master key used for encryption
+/// # Returns
+/// * The generated header
+/// * an AES key that has to be used for encrypting the actual contents and
+/// * the corresponding IV
+/// # Errors
+/// * Cryptographic errors returned by OpenSSL
+/// # Example
+/// ```
+/// use mpw_core::cryptography::generate_file_header;
+/// use mpw_core::cryptography::util::generate_key;
+/// let master_key = generate_key();
+/// let (header, key, iv) = generate_file_header(&master_key).unwrap();
+/// ```
 pub fn generate_file_header(master_key: &AesKey) -> error::Result<(FileHeader, AesKey, AesIV)> {
     let file_key = util::generate_key();
     let file_iv = util::generate_iv();
@@ -370,6 +603,23 @@ pub fn generate_file_header(master_key: &AesKey) -> error::Result<(FileHeader, A
     ))
 }
 
+/// Recovers the master key from the encrypted file header.
+/// # Parameters
+/// * `header`: The file header containing the encrypted key used for file encryption
+/// * `master_kex`: The master AES key
+/// # Returns
+/// * The AES key that can be used to decrypt the file contents
+/// # Errors
+/// * Cryptographic errors returned by OpenSSL
+/// # Example
+/// ```
+/// use mpw_core::cryptography::{generate_file_header, decrypt_file_header};
+/// use mpw_core::cryptography::util::generate_key;
+/// let master_key = generate_key();
+/// let (header, key, iv) = generate_file_header(&master_key).unwrap();
+/// let recovered_key = decrypt_file_header(&header, &master_key).unwrap();
+/// assert_eq!(key, recovered_key)
+/// ```
 pub fn decrypt_file_header(header: &FileHeader, master_key: &AesKey) -> error::Result<AesKey> {
     let key = decrypt(
         Cipher::aes_256_cbc(),
@@ -381,6 +631,22 @@ pub fn decrypt_file_header(header: &FileHeader, master_key: &AesKey) -> error::R
     Ok(util::to_key(key)?)
 }
 
+/// Encrypts a given text unsing the provided key.
+/// # Parameters
+/// * `data`: The text to be encrypted
+/// * `key`: The master key to be used for encryption of the file header
+/// # Returns
+/// * The encrypted text with its corresponding file header
+/// # Errors
+/// * Cryptographic errors returned by OpenSSL
+/// # Example
+/// ```
+/// use mpw_core::cryptography::encrypt_text;
+/// use mpw_core::cryptography::util::generate_key;
+/// let text = "Sensitive text".into();
+/// let master_key = generate_key();
+/// let result = encrypt_text(text, &master_key).unwrap();
+/// ```
 pub fn encrypt_text(data: SecureString, master_key: &AesKey) -> error::Result<Vec<u8>> {
     let (header, file_key, _) = generate_file_header(master_key)?;
     let mut encrypted_data = encrypt(
@@ -394,6 +660,27 @@ pub fn encrypt_text(data: SecureString, master_key: &AesKey) -> error::Result<Ve
     Ok(raw)
 }
 
+/// Decrypts a given text using the provided master key.
+/// # Parameters
+/// * `data`: The text to be decrypted. The actual text is preceded by the file header.
+/// * `key`: The master key to be used for decryption of the file header
+/// # Returns
+/// * The decrypted text
+/// # Errors
+/// * File header parsing errors
+/// * Cryptographic errors returned by OpenSSL
+/// * UTF8 error if the data cannot be represented as an UTF8 string
+/// # Example
+/// ```
+/// use mpw_core::cryptography::{decrypt_text, encrypt_text};
+/// use mpw_core::cryptography::util::generate_key;
+/// let text = "Sensitive text".into();
+/// let master_key = generate_key();
+/// let result = encrypt_text(text, &master_key).unwrap();
+/// let recovered = decrypt_text(&result, &master_key).unwrap();
+/// assert_eq!("Sensitive text", recovered.unsecure());
+///
+/// ```
 pub fn decrypt_text(data: &[u8], master_key: &AesKey) -> error::Result<SecureString> {
     let header = FileHeader::try_from(data)?;
     let key = decrypt_file_header(&header, master_key)?;
@@ -407,6 +694,33 @@ pub fn decrypt_text(data: &[u8], master_key: &AesKey) -> error::Result<SecureStr
     Ok(SecureString::from(String::from_utf8(decrypted_data)?))
 }
 
+/// Transfers data from an unencrypted source stream to a destination stream while performing
+/// encryption. The source will be zeroed out after the transfer.
+/// # Type Parameters
+/// * `Source`: The type of the source stream.
+/// * `Dest`: The type of the destination stream.
+/// # Parameters
+/// * `source`: The source stream. The date may be unencrypted.
+/// * `dest`: The destination stream. The encrypted data will be written to this stream.
+/// * `key`: The encryption key.
+/// * `iv`: The initialization vector.
+/// # Errors
+/// * Errors reported by OpenSSL
+/// * IO errors
+/// # Note
+/// The source stream will be zeroed out.
+/// # Example
+/// ```
+/// use std::io::Cursor;
+/// use mpw_core::cryptography::crypto_write;
+/// use mpw_core::cryptography::util::{generate_iv, generate_key};
+/// let mut sensitive_data = (1..100).collect::<Vec<u8>>();
+/// let mut destination = Vec::new();
+/// let key = generate_key();
+/// let iv = generate_iv();
+/// crypto_write(Cursor::new(&mut sensitive_data), &mut destination, &key, &iv).unwrap();
+/// assert!(sensitive_data.iter().all(|x| *x == 0u8));
+/// ```
 pub fn crypto_write<Source, Dest>(
     source: Source,
     dest: &mut Dest,
@@ -427,6 +741,33 @@ where
     Ok(())
 }
 
+/// Transfers data from an encrypted source stream to a destination stream while performing
+/// decryption.
+/// # Type Parameters
+/// * `Source`: The type of the source stream.
+/// * `Dest`: The type of the destination stream.
+/// # Parameters
+/// * `source`: The source stream. The encrypted data will be read from this stream.
+/// * `dest`: The destination stream. The decrypted data will be written to this stream.
+/// * `key`: The decryption key.
+/// * `iv`: The initialization vector.
+/// # Errors
+/// * Cryptographic errors reported by OpenSSL
+/// * IO errors
+/// # Example
+/// ```
+/// use std::io::Cursor;
+/// use mpw_core::cryptography::{crypto_read, crypto_write};
+/// use mpw_core::cryptography::util::{generate_iv, generate_key};
+/// let mut sensitive_data = (1..100).collect::<Vec<u8>>();
+/// let mut destination = Vec::new();
+/// let key = generate_key();
+/// let iv = generate_iv();
+/// crypto_write(Cursor::new(&mut sensitive_data), &mut destination, &key, &iv).unwrap();
+/// let mut recovered = Vec::new();
+/// crypto_read(Cursor::new(destination), &mut recovered, &key, &iv).unwrap();
+/// assert_eq!(recovered, (1..100).collect::<Vec<u8>>());
+/// ```
 pub fn crypto_read<Source, Dest>(
     source: Source,
     dest: &mut Dest,
