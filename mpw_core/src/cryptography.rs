@@ -241,40 +241,6 @@ impl VaultData {
             salt,
         })
     }
-
-    /// Creates a new main vault data structure and encrypts it using the master password.
-    /// # Parameters
-    /// * `master_pw`: The master password to use for the vault instance
-    ///
-    /// # Returns:
-    /// * New VaultData instance
-    ///
-    /// # Errors:
-    /// * Encryption errors
-    ///
-    /// # Examples:
-    /// ```
-    /// use mpw_core::cryptography::VaultData;
-    /// let password = "secret password".into();
-    /// let vault_data = VaultData::new(password);
-    /// ```
-    pub fn new(master_pw: SecureString) -> error::Result<VaultData> {
-        let master_key = util::generate_key();
-        let salt = util::generate_salt();
-        let iv = util::generate_iv();
-        let pw_key = generate_key_from_password(&master_pw, &salt);
-        let cipher_master_key = encrypt(
-            Cipher::aes_256_cbc(),
-            pw_key.unsecure(),
-            Some(&iv),
-            master_key.unsecure(),
-        )?;
-        Ok(VaultData {
-            iv,
-            cipher_master_key,
-            salt,
-        })
-    }
 }
 
 impl FileHeader {
@@ -420,6 +386,41 @@ pub mod util {
 }
 
 // main methods
+
+
+/// Creates a new main vault data structure and encrypts it using the master password.
+/// # Parameters
+/// * `master_pw`: The master password to use for the vault instance
+///
+/// # Returns:
+/// * New VaultData instance and the master key
+///
+/// # Errors:
+/// * Encryption errors
+///
+/// # Examples:
+/// ```
+/// use mpw_core::cryptography::VaultData;
+/// let password = "secret password".into();
+/// let vault_data = VaultData::new(password);
+/// ```
+pub fn generate_vault_data(master_pw: SecureString) -> error::Result<(VaultData, AesKey)> {
+    let master_key = util::generate_key();
+    let salt = util::generate_salt();
+    let iv = util::generate_iv();
+    let pw_key = generate_key_from_password(&master_pw, &salt);
+    let cipher_master_key = encrypt(
+        Cipher::aes_256_cbc(),
+        pw_key.unsecure(),
+        Some(&iv),
+        master_key.unsecure(),
+    )?;
+    Ok((VaultData {
+        iv,
+        cipher_master_key,
+        salt,
+    }, master_key))
+}
 
 /// Generates an AES encryption key derived from a given password and salt using the PBKDF2 algorithm.
 ///

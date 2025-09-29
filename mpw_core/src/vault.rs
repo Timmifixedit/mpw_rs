@@ -115,7 +115,8 @@ impl Vault {
         let vault_file = working_dir.join(VAULT_FILE);
         std::fs::File::create(file_list)?;
         let mut v_fd = std::fs::File::create(vault_file)?;
-        let vault_data: Vec<u8> = cryptography::VaultData::new(master_pw)?.into();
+        let (vault_data, _) = cryptography::generate_vault_data(master_pw)?;
+        let vault_data: Vec<u8> = vault_data.into();
         v_fd.write_all(&vault_data)?;
         Self::load(working_dir)
     }
