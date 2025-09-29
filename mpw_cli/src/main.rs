@@ -1,9 +1,13 @@
+mod vault_processor;
+mod command_processor;
+
 use mpw_core::vault::VaultError;
 use std::env;
 use std::io::stdin;
 use std::path::Path;
 use std::process::exit;
 use thiserror;
+use crate::command_processor::CommandProcessor;
 
 #[derive(thiserror::Error, Debug)]
 enum AppError {
@@ -18,6 +22,7 @@ impl From<String> for AppError {
         Self::Simple(value)
     }
 }
+
 
 fn run() -> Result<(), AppError> {
     let args: Vec<String> = env::args().collect();
@@ -35,22 +40,25 @@ fn run() -> Result<(), AppError> {
         .expect("Failed to read user input");
     let master_pw = user_input.trim().into();
     vault.unlock(master_pw)?;
-    println!("Enter password name:");
+    let mut vp = vault_processor::VaultProcessor::new(vault);
     user_input.clear();
-    stdin()
-        .read_line(&mut user_input)
-        .expect("Failed to read user input");
-    let pw_name = user_input.trim();
-    let (password, login) = vault.retrieve_password(pw_name)?;
-    println!(
-        "Password: {}{}",
-        password.unsecure(),
-        if login.is_some() {
-            format!(" (login: {})", login.unwrap().unsecure())
-        } else {
-            "".into()
+    loop {
+        stdin().read_line(&mut user_input).expect("Failed to read user input");
+        user_input = user_input.trim().to_string();
+        if user_input == "exit" {
+            break;
         }
-    );
+
+        if vp.require_raw() {
+            println!("{}", vp.process_raw(&user_input));
+        } else if vp.require_secret() {
+            println!("{}", vp.process_secret(user_input.into()));
+        } else {
+            println!("{}", vp.process_command(&user_input));
+        }
+
+        user_input = "".into();
+    }
     Ok(())
 }
 
