@@ -198,4 +198,20 @@ impl Vault {
         Ok(())
 
     }
+
+    pub fn list_passwords(&self) -> Result<Vec<String>, VaultError> {
+        let mut ret = vec![];
+        for entry in std::fs::read_dir(self.working_dir.join(PW_PATH))? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_file()
+                && path.file_stem().is_some()
+                && path.extension().unwrap_or_default() == PW_EXTENSION
+            {
+                ret.push(path.file_stem().unwrap().to_string_lossy().to_string());
+            }
+        }
+
+        Ok(ret)
+    }
 }
