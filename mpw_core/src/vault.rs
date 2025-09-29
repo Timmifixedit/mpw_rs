@@ -1,4 +1,5 @@
 use std::io::Write;
+use std::num::NonZeroU32;
 use crate::cryptography;
 use crate::event::MessageEvent;
 use crate::path_manager::{CreationError, PathManager};
@@ -36,6 +37,8 @@ pub enum VaultError {
     InvalidPwName(String),
     #[error("'{0}' already exists")]
     AlreadyExists(String),
+    #[error("Invalid parameter '{0}'")]
+    InvalidParameter(String),
 }
 
 type VaultResult<T> = Result<T, VaultError>;
@@ -54,11 +57,14 @@ fn assert_valid_name(pw_name: &str) -> Result<(), VaultError> {
     Ok(())
 }
 
-pub fn random_password(len: u32, forbidden_chars: &str) -> SecureString {
-    let chars = ('!'..='~').filter(|c| !forbidden_chars.contains(*c)).collect::<Vec<char>>();
-    let mut idx = vec![0u8; len as usize];
+pub fn random_password(len: NonZeroU32, forbidden_chars: Option<&str>) -> VaultResult<SecureString> {
+    let chars = ('!'..='~').filter(|c| forbidden_chars.map_or_else(|| true, |f| !f.contains(*c))).collect::<Vec<char>>();
+    if chars.is_empty() {
+        return VaultError::InvalidParameter("No character options left for random password".to_string()).into();
+    }
+    let mut idx = vec![0u8; len.get() as usize];
     rand_bytes(&mut idx).unwrap();
-    idx.into_iter().map(|i| chars[i as usize % chars.len()]).collect::<String>().into()
+    Ok(idx.into_iter().map(|i| chars[i as usize % chars.len()]).collect::<String>().into())
 }
 
 pub struct Vault {
