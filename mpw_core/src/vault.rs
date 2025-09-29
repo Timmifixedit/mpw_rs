@@ -141,7 +141,7 @@ impl Vault {
         Ok(())
     }
 
-    pub fn retrieve_password(&self, pw_name: &str) -> Result<(SecureString, Option<SecureString>), VaultError> {
+    pub fn retrieve_password(&self, pw_name: &str) -> Result<(SecureString, Option<String>), VaultError> {
         if self.is_locked() {
             return VaultError::VaultLocked.into();
         }
@@ -154,7 +154,7 @@ impl Vault {
 
         let pw = cryptography::decrypt_text_from_file(&pw_path, &self.master_key.as_ref().unwrap())?;
         let login = if login_path.exists() {
-            Some(cryptography::decrypt_text_from_file(&login_path, &self.master_key.as_ref().unwrap())?)
+            Some(cryptography::decrypt_text_from_file(&login_path, &self.master_key.as_ref().unwrap())?.into_unsecure())
         } else {
             None
         };
@@ -162,7 +162,7 @@ impl Vault {
         Ok((pw, login))
     }
 
-    pub fn write_password(&self, pw_name: &str, pw: SecureString, login: Option<SecureString>, overwrite: bool) -> Result<(), VaultError> {
+    pub fn write_password(&self, pw_name: &str, pw: SecureString, login: Option<&str>, overwrite: bool) -> Result<(), VaultError> {
         if self.is_locked() {
             return VaultError::VaultLocked.into();
         }
@@ -170,17 +170,19 @@ impl Vault {
         assert_valid_name(pw_name)?;
         let pw_path = self.working_dir.join(PW_PATH).join(pw_name).with_extension(PW_EXTENSION);
         if pw_path.exists() && !overwrite {
-            return VaultError::AlreadyExists(pw.to_string()).into();
+            return VaultError::AlreadyExists(pw_name.to_string()).into();
         }
 
         if !pw_path.exists() && overwrite {
             return VaultError::PasswordNotFound(pw_name.to_string()).into();
         }
 
-        cryptography::encrypt_text_to_file(pw, &pw_path, &self.master_key.as_ref().unwrap())?;
-        if login.is_some() {
+        if pw != "".into() {
+            cryptography::encrypt_text_to_file(pw, &pw_path, &self.master_key.as_ref().unwrap())?;
+        }
+        if let Some(login) = login && login != "" {
             let login_path = self.working_dir.join(PW_PATH).join(pw_name).with_extension(LOGIN_EXTENSION);
-            cryptography::encrypt_text_to_file(login.unwrap(), &login_path, &self.master_key.as_ref().unwrap())?;
+            cryptography::encrypt_text_to_file(login.into(), &login_path, &self.master_key.as_ref().unwrap())?;
         }
 
         Ok(())
