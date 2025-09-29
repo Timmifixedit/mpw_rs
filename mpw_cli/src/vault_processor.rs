@@ -69,6 +69,21 @@ trait Handler {
     fn handle(self, vault: &mut Vault, clipboard: &mut Clipboard) -> (VaultState, Followup);
 }
 
+impl Handler for VaultCommand {
+    fn handle(self, vault: &mut Vault, clipboard: &mut Clipboard) -> (VaultState, Followup) {
+        match self {
+            VaultCommand::Get(args) => args.handle(vault, clipboard),
+            VaultCommand::Add(args) => args.handle(vault, clipboard),
+        }
+    }
+}
+
+impl Handler for VaultCli {
+    fn handle(self, vault: &mut Vault, clipboard: &mut Clipboard) -> (VaultState, Followup) {
+        self.cmd.handle(vault, clipboard)
+    }
+}
+
 impl Handler for Get {
     fn handle(self, vault: &mut Vault, clipboard: &mut Clipboard) -> (VaultState, Followup) {
         vault.retrieve_password(&self.name).map_or_else(
@@ -176,8 +191,12 @@ impl VaultProcessor {
 
     fn set_followup(&mut self, followup: Followup) {
         match followup {
-            Followup::Raw(r) => {self.process_raw = Some(r);}
-            Followup::Secret(s) => {self.process_secret = Some(s);}
+            Followup::Raw(r) => {
+                self.process_raw = Some(r);
+            }
+            Followup::Secret(s) => {
+                self.process_secret = Some(s);
+            }
             _ => {}
         }
     }
@@ -197,10 +216,7 @@ impl cp::CommandProcessor for VaultProcessor {
             }
         };
 
-        let (state, followup) = match parsed.cmd {
-            VaultCommand::Get(args) => args.handle(&mut self.vault, &mut self.clipboard),
-            VaultCommand::Add(args) => args.handle(&mut self.vault, &mut self.clipboard)
-        };
+        let (state, followup) = parsed.handle(&mut self.vault, &mut self.clipboard);
         self.state = state;
         self.set_followup(followup);
     }
