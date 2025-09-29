@@ -89,14 +89,14 @@ impl From<VaultData> for Vec<u8> {
 impl TryFrom<&[u8]> for VaultData {
     type Error = MpwError;
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        VaultData::new(Cursor::new(value))
+        VaultData::load(Cursor::new(value))
     }
 }
 
 impl TryFrom<Vec<u8>> for VaultData {
     type Error = MpwError;
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
-        VaultData::new(Cursor::new(value))
+        VaultData::load(Cursor::new(value))
     }
 }
 
@@ -138,7 +138,7 @@ impl TryFrom<&[u8]> for FileHeader {
     type Error = MpwError;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        FileHeader::new(Cursor::new(value))
+        FileHeader::load(Cursor::new(value))
     }
 }
 
@@ -146,7 +146,7 @@ impl TryFrom<Vec<u8>> for FileHeader {
     type Error = MpwError;
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
-        FileHeader::new(Cursor::new(value))
+        FileHeader::load(Cursor::new(value))
     }
 }
 
@@ -191,7 +191,7 @@ impl VaultData {
     /// use mpw_core::cryptography::VaultData;
     ///
     /// let fake_data = Cursor::new(vec![/* Serialized binary data */]);
-    /// match VaultData::new(fake_data) {
+    /// match VaultData::load(fake_data) {
     ///     Ok(vault_data) => println!("VaultData initialized successfully!"),
     ///     Err(e) => eprintln!("Failed to initialize VaultData: {:?}", e),
     /// }
@@ -200,7 +200,7 @@ impl VaultData {
     /// # See Also
     /// - `VaultData`: The struct this function initializes.
     /// - `error::InvalidHeader`: Possible error variants returned by this function.
-    pub fn new<T: Read + Seek>(mut data: T) -> error::Result<VaultData> {
+    pub fn load<T: Read + Seek>(mut data: T) -> error::Result<VaultData> {
         type HErr = error::InvalidHeader;
 
         let header = io::read_bytes(&mut data, 8, Start(0)).map_err(HErr::Io)?;
@@ -238,6 +238,40 @@ impl VaultData {
         Ok(VaultData {
             iv,
             cipher_master_key: cipher_key,
+            salt,
+        })
+    }
+
+    /// Creates a new main vault data structure and encrypts it using the master password.
+    /// # Parameters
+    /// * `master_pw`: The master password to use for the vault instance
+    ///
+    /// # Returns:
+    /// * New VaultData instance
+    ///
+    /// # Errors:
+    /// * Encryption errors
+    ///
+    /// # Examples:
+    /// ```
+    /// use mpw_core::cryptography::VaultData;
+    /// let password = "secret password".into();
+    /// let vault_data = VaultData::new(password);
+    /// ```
+    pub fn new(master_pw: SecureString) -> error::Result<VaultData> {
+        let master_key = util::generate_key();
+        let salt = util::generate_salt();
+        let iv = util::generate_iv();
+        let pw_key = generate_key_from_password(&master_pw, &salt);
+        let cipher_master_key = encrypt(
+            Cipher::aes_256_cbc(),
+            pw_key.unsecure(),
+            Some(&iv),
+            master_key.unsecure(),
+        )?;
+        Ok(VaultData {
+            iv,
+            cipher_master_key,
             salt,
         })
     }
@@ -282,11 +316,11 @@ impl FileHeader {
     /// use mpw_core::cryptography::FileHeader;
     ///
     /// let cursor = Cursor::new(vec![/* Serialized binary data */]);
-    /// if let Ok(header) = FileHeader::new(cursor) {
+    /// if let Ok(header) = FileHeader::load(cursor) {
     ///     // ...
     /// }
     /// ```
-    pub fn new<T: Read + Seek>(mut data: T) -> error::Result<FileHeader> {
+    pub fn load<T: Read + Seek>(mut data: T) -> error::Result<FileHeader> {
         type HErr = error::InvalidHeader;
         let header = io::read_bytes(&mut data, 12, Start(0)).map_err(HErr::Io)?;
         let master_iv_len = util::from_bytes(header[0..4].try_into().unwrap()) as usize;

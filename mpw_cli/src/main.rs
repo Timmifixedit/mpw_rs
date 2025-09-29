@@ -45,9 +45,9 @@ fn run() -> Result<(), AppError> {
     }
 
     let f = File::open(pw_file).map_err(|e| AppError::Simple(e.to_string()))?;
-    let pw_header = crypt::FileHeader::new(f)?;
+    let pw_header = crypt::FileHeader::load(f)?;
     let f = File::open(vault_file).map_err(|e| AppError::Simple(e.to_string()))?;
-    let vault_file = crypt::VaultData::new(f)?;
+    let vault_file = crypt::VaultData::load(f)?;
     println!("{vault_file}");
     println!();
     println!("{pw_header}");
@@ -90,7 +90,7 @@ fn run() -> Result<(), AppError> {
         .read_line(&mut String::new())
         .map_err(|x| x.to_string())?;
     let f = File::open(dest_file).map_err(|e| AppError::Simple(e.to_string()))?;
-    let enc_file = crypt::FileHeader::new(f)?;
+    let enc_file = crypt::FileHeader::load(f)?;
     let key = match decrypt(
         Cipher::aes_256_cbc(),
         master_key.unsecure(),
