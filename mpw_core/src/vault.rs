@@ -185,4 +185,15 @@ impl Vault {
 
         Ok(())
     }
+
+    pub fn change_master_password(&mut self, master_pw: SecureString) -> Result<(), VaultError> {
+        let vlt_file_path = self.working_dir.join(VAULT_FILE);
+        let (vlt_data, master_key) = cryptography::generate_vault_data(master_pw)?;
+        self.master_key = Some(master_key);
+        let mut vtl_fd = std::fs::File::create(vlt_file_path)?;
+        let vlt_data: Vec<u8> = vlt_data.into();
+        vtl_fd.write_all(&vlt_data)?;
+        Ok(())
+
+    }
 }
