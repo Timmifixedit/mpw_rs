@@ -1,14 +1,14 @@
-use std::io::Write;
-use std::num::NonZeroU32;
 use crate::cryptography;
+use crate::error::MpwError;
 use crate::event::MessageEvent;
 use crate::path_manager::{CreationError, PathManager};
-use std::path::PathBuf;
-use secure_string::SecureString;
-use thiserror;
-use openssl::rand::rand_bytes;
-use crate::error::{MpwError};
 use crate::vault::VaultError::VaultFileNotFound;
+use openssl::rand::rand_bytes;
+use secure_string::SecureString;
+use std::io::Write;
+use std::num::NonZeroU32;
+use std::path::PathBuf;
+use thiserror;
 
 const VLT_EXTENSION: &'static str = ".vlt";
 const PW_PATH: &'static str = "Passwords";
@@ -50,21 +50,33 @@ impl<T> From<VaultError> for VaultResult<T> {
 }
 
 fn assert_valid_name(pw_name: &str) -> Result<(), VaultError> {
-    if pw_name.is_empty() || pw_name.contains("/")  || pw_name.contains(r"\") {
+    if pw_name.is_empty() || pw_name.contains("/") || pw_name.contains(r"\") {
         return VaultError::InvalidPwName(pw_name.to_string()).into();
     }
 
     Ok(())
 }
 
-pub fn random_password(len: NonZeroU32, forbidden_chars: Option<&str>) -> VaultResult<SecureString> {
-    let chars = ('!'..='~').filter(|c| forbidden_chars.map_or_else(|| true, |f| !f.contains(*c))).collect::<Vec<char>>();
+pub fn random_password(
+    len: NonZeroU32,
+    forbidden_chars: Option<&str>,
+) -> VaultResult<SecureString> {
+    let chars = ('!'..='~')
+        .filter(|c| forbidden_chars.map_or_else(|| true, |f| !f.contains(*c)))
+        .collect::<Vec<char>>();
     if chars.is_empty() {
-        return VaultError::InvalidParameter("No character options left for random password".to_string()).into();
+        return VaultError::InvalidParameter(
+            "No character options left for random password".to_string(),
+        )
+        .into();
     }
     let mut idx = vec![0u8; len.get() as usize];
     rand_bytes(&mut idx).unwrap();
-    Ok(idx.into_iter().map(|i| chars[i as usize % chars.len()]).collect::<String>().into())
+    Ok(idx
+        .into_iter()
+        .map(|i| chars[i as usize % chars.len()])
+        .collect::<String>()
+        .into())
 }
 
 pub struct Vault {
@@ -77,9 +89,7 @@ pub struct Vault {
 impl Vault {
     pub fn load(working_dir: PathBuf) -> VaultResult<Vault> {
         if !working_dir.is_dir() {
-            return VaultError::VaultDirNotFound(
-                working_dir.to_string_lossy().to_string(),
-            ).into();
+            return VaultError::VaultDirNotFound(working_dir.to_string_lossy().to_string()).into();
         }
 
         let file_list = working_dir.join(FILE_LIST);
@@ -112,9 +122,7 @@ impl Vault {
 
     pub fn new(working_dir: PathBuf, master_pw: SecureString) -> VaultResult<Vault> {
         if !working_dir.is_dir() {
-            return VaultError::VaultDirNotFound(
-                working_dir.to_string_lossy().to_string(),
-            ).into();
+            return VaultError::VaultDirNotFound(working_dir.to_string_lossy().to_string()).into();
         }
 
         let file_list = working_dir.join(FILE_LIST);
@@ -147,20 +155,38 @@ impl Vault {
         Ok(())
     }
 
-    pub fn retrieve_password(&self, pw_name: &str) -> Result<(SecureString, Option<String>), VaultError> {
+    pub fn retrieve_password(
+        &self,
+        pw_name: &str,
+    ) -> Result<(SecureString, Option<String>), VaultError> {
         if self.is_locked() {
             return VaultError::VaultLocked.into();
         }
 
-        let pw_path = self.working_dir.join(PW_PATH).join(pw_name).with_extension(PW_EXTENSION);
-        let login_path = self.working_dir.join(PW_PATH).join(pw_name).with_extension(LOGIN_EXTENSION);
+        let pw_path = self
+            .working_dir
+            .join(PW_PATH)
+            .join(pw_name)
+            .with_extension(PW_EXTENSION);
+        let login_path = self
+            .working_dir
+            .join(PW_PATH)
+            .join(pw_name)
+            .with_extension(LOGIN_EXTENSION);
         if !pw_path.exists() {
             return VaultError::PasswordNotFound(pw_name.to_string()).into();
         }
 
-        let pw = cryptography::decrypt_text_from_file(&pw_path, &self.master_key.as_ref().unwrap())?;
+        let pw =
+            cryptography::decrypt_text_from_file(&pw_path, &self.master_key.as_ref().unwrap())?;
         let login = if login_path.exists() {
-            Some(cryptography::decrypt_text_from_file(&login_path, &self.master_key.as_ref().unwrap())?.into_unsecure())
+            Some(
+                cryptography::decrypt_text_from_file(
+                    &login_path,
+                    &self.master_key.as_ref().unwrap(),
+                )?
+                .into_unsecure(),
+            )
         } else {
             None
         };
@@ -168,13 +194,23 @@ impl Vault {
         Ok((pw, login))
     }
 
-    pub fn write_password(&self, pw_name: &str, pw: SecureString, login: Option<&str>, overwrite: bool) -> Result<(), VaultError> {
+    pub fn write_password(
+        &self,
+        pw_name: &str,
+        pw: SecureString,
+        login: Option<&str>,
+        overwrite: bool,
+    ) -> Result<(), VaultError> {
         if self.is_locked() {
             return VaultError::VaultLocked.into();
         }
 
         assert_valid_name(pw_name)?;
-        let pw_path = self.working_dir.join(PW_PATH).join(pw_name).with_extension(PW_EXTENSION);
+        let pw_path = self
+            .working_dir
+            .join(PW_PATH)
+            .join(pw_name)
+            .with_extension(PW_EXTENSION);
         if pw_path.exists() && !overwrite {
             return VaultError::AlreadyExists(pw_name.to_string()).into();
         }
@@ -186,9 +222,19 @@ impl Vault {
         if pw != "".into() {
             cryptography::encrypt_text_to_file(pw, &pw_path, &self.master_key.as_ref().unwrap())?;
         }
-        if let Some(login) = login && login != "" {
-            let login_path = self.working_dir.join(PW_PATH).join(pw_name).with_extension(LOGIN_EXTENSION);
-            cryptography::encrypt_text_to_file(login.into(), &login_path, &self.master_key.as_ref().unwrap())?;
+        if let Some(login) = login
+            && login != ""
+        {
+            let login_path = self
+                .working_dir
+                .join(PW_PATH)
+                .join(pw_name)
+                .with_extension(LOGIN_EXTENSION);
+            cryptography::encrypt_text_to_file(
+                login.into(),
+                &login_path,
+                &self.master_key.as_ref().unwrap(),
+            )?;
         }
 
         Ok(())
@@ -202,7 +248,6 @@ impl Vault {
         let vlt_data: Vec<u8> = vlt_data.into();
         vtl_fd.write_all(&vlt_data)?;
         Ok(())
-
     }
 
     pub fn list_passwords(&self) -> Result<Vec<String>, VaultError> {
