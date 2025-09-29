@@ -1,10 +1,20 @@
-use std::num::NonZeroU32;
 use crate::command_processor as cp;
 use arboard;
+use arboard::Clipboard;
 use clap::{Args, Parser, Subcommand};
 use mpw_core::vault;
 use mpw_core::vault::{Vault, VaultError};
 use secure_string::SecureString;
+use std::num::NonZeroU32;
+
+type RawHandler = Box<dyn FnOnce(&mut Vault, String) -> (VaultState, Followup)>;
+type SecretHandler = Box<dyn FnOnce(&mut Vault, SecureString) -> (VaultState, Followup)>;
+
+enum Followup {
+    Raw(RawHandler),
+    Secret(SecretHandler),
+    None,
+}
 
 #[cfg(windows)]
 const ENDL: &str = "\r\n";
@@ -55,6 +65,83 @@ struct VaultCli {
     cmd: VaultCommand,
 }
 
+trait Handler {
+    fn handle(self, vault: &mut Vault, clipboard: &mut Clipboard) -> (VaultState, Followup);
+}
+
+impl Handler for Get {
+    fn handle(self, vault: &mut Vault, clipboard: &mut Clipboard) -> (VaultState, Followup) {
+        vault.retrieve_password(&self.name).map_or_else(
+            |e| println!("{}", e.to_string()),
+            |(pw, login)| {
+                if let Some(login) = login {
+                    println!("{}", login);
+                }
+                if self.show {
+                    println!("{}", pw.unsecure());
+                } else {
+                    if let Err(e) = clipboard.set_text(pw.unsecure()) {
+                        eprintln!("Error copying password to clipboard: {}", e.to_string());
+                    } else {
+                        println!("Password copied to clipboard");
+                    }
+                }
+            },
+        );
+
+        (VaultState::Unlocked, Followup::None)
+    }
+}
+
+impl Handler for Add {
+    fn handle(self, vault: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup) {
+        let result = (|| {
+            let exists = vault.list_passwords()?.contains(&self.name);
+            if exists && !self.overwrite {
+                return Err(VaultError::AlreadyExists(self.name.clone()));
+            }
+
+            if self.overwrite && !exists {
+                return Err(VaultError::PasswordNotFound(self.name.clone()));
+            }
+
+            let success_msg = format!(
+                "Successfully {} password {}",
+                if self.overwrite { "updated" } else { "created" },
+                self.name
+            );
+
+            if let Some(r_len) = self.rand_len {
+                let pw = vault::random_password(r_len, self.invalid_chars.as_deref())?;
+                vault.write_password(&self.name, pw, self.login.as_deref(), self.overwrite)?;
+                println!("{}", success_msg);
+                return Ok((VaultState::Unlocked, Followup::None));
+            }
+
+            println!("Enter password:");
+            let followup = Followup::Secret(Box::new(move |vlt, pw| {
+                println!(
+                    "{}",
+                    vlt.write_password(
+                        self.name.as_str(),
+                        pw,
+                        self.login.as_deref(),
+                        self.overwrite,
+                    )
+                    .map_or_else(|e| e.to_string(), |_| success_msg)
+                );
+                (VaultState::Unlocked, Followup::None)
+            }));
+
+            Ok((VaultState::EnterPw, followup))
+        })();
+        result.unwrap_or_else(|e| {
+            println!("{}", e.to_string());
+            (VaultState::Unlocked, Followup::None)
+        })
+    }
+}
+
 #[derive(Debug, Eq, PartialEq)]
 enum VaultState {
     Locked,
@@ -66,9 +153,9 @@ enum VaultState {
 pub struct VaultProcessor {
     vault: Vault,
     state: VaultState,
-    process_raw: Option<Box<dyn FnOnce(&mut Vault, String) -> (String, VaultState)>>,
-    process_secret: Option<Box<dyn FnOnce(&mut Vault, SecureString) -> (String, VaultState)>>,
-    clipboard: arboard::Clipboard,
+    process_raw: Option<RawHandler>,
+    process_secret: Option<SecretHandler>,
+    clipboard: Clipboard,
 }
 
 impl VaultProcessor {
@@ -83,76 +170,21 @@ impl VaultProcessor {
             state,
             process_raw: None,
             process_secret: None,
-            clipboard: arboard::Clipboard::new().expect("Failed to initialize clipboard"),
+            clipboard: Clipboard::new().expect("Failed to initialize clipboard"),
         }
     }
 
-    fn get(&mut self, args: Get) -> String {
-        self.vault
-            .retrieve_password(&args.name)
-            .map(|(pw, login)| {
-                let mut ret = login.unwrap_or_else(|| "".into()).to_string() + ENDL;
-                if args.show {
-                    ret += pw.unsecure().into();
-                } else {
-                    if let Err(e) = self.clipboard.set_text(pw.unsecure()) {
-                        ret += &format!("Error copying password to clipboard: {}", e.to_string());
-                    } else {
-                        ret += "Password copied to clipboard".into();
-                    }
-                }
-
-                ret
-            })
-            .unwrap_or_else(|e| e.to_string())
-    }
-
-    fn add(&mut self, args: Add) -> String {
-        let result: Result<String, VaultError> = (|| {
-            let exists = self.vault.list_passwords()?.contains(&args.name);
-            if exists && !args.overwrite {
-                return Err(VaultError::AlreadyExists(args.name.clone()));
-            }
-
-            if args.overwrite && !exists {
-                return Err(VaultError::PasswordNotFound(args.name.clone()));
-            }
-
-            let success_msg = format!(
-                "Successfully {} password {}",
-                if args.overwrite { "updated" } else { "created" },
-                args.name
-            );
-
-            if let Some(r_len) = args.rand_len {
-                let pw = vault::random_password(r_len, args.invalid_chars.as_deref())?;
-                self.vault
-                    .write_password(&args.name, pw, args.login.as_deref(), args.overwrite)?;
-                return Ok(success_msg);
-            }
-
-            self.process_secret = Some(Box::new(move |vlt, pw| {
-                (
-                    vlt.write_password(
-                        args.name.as_str(),
-                        pw,
-                        args.login.as_deref(),
-                        args.overwrite,
-                    )
-                    .map_or_else(|e| e.to_string(), |_| success_msg),
-                    VaultState::Unlocked,
-                )
-            }));
-            self.state = VaultState::EnterPw;
-            Ok("Enter your password".into())
-        })();
-
-        result.unwrap_or_else(move |e| e.to_string())
+    fn set_followup(&mut self, followup: Followup) {
+        match followup {
+            Followup::Raw(r) => {self.process_raw = Some(r);}
+            Followup::Secret(s) => {self.process_secret = Some(s);}
+            _ => {}
+        }
     }
 }
 
 impl cp::CommandProcessor for VaultProcessor {
-    fn process_command(&mut self, command: &str) -> String {
+    fn process_command(&mut self, command: &str) {
         if self.state != VaultState::Unlocked {
             panic!("Invalid state {:?}", self.state);
         }
@@ -161,17 +193,19 @@ impl cp::CommandProcessor for VaultProcessor {
         let parsed = match VaultCli::try_parse_from(args) {
             Ok(cli) => cli,
             Err(e) => {
-                return format!("Error parsing command: {}", e);
+                return println!("Error parsing command: {}", e);
             }
         };
 
-        match parsed.cmd {
-            VaultCommand::Get(args) => self.get(args),
-            VaultCommand::Add(args) => self.add(args),
-        }
+        let (state, followup) = match parsed.cmd {
+            VaultCommand::Get(args) => args.handle(&mut self.vault, &mut self.clipboard),
+            VaultCommand::Add(args) => args.handle(&mut self.vault, &mut self.clipboard)
+        };
+        self.state = state;
+        self.set_followup(followup);
     }
 
-    fn process_raw(&mut self, command: &str) -> String {
+    fn process_raw(&mut self, command: &str) {
         if self.state != VaultState::Unlocked {
             panic!("Invalid state {:?}", self.state);
         }
@@ -179,15 +213,15 @@ impl cp::CommandProcessor for VaultProcessor {
         todo!()
     }
 
-    fn process_secret(&mut self, secret: SecureString) -> String {
+    fn process_secret(&mut self, secret: SecureString) {
         if self.state != VaultState::EnterPw && self.state != VaultState::Locked {
             panic!("Invalid state {:?}", self.state);
         }
 
         let handler = self.process_secret.take().expect("No secret handler set");
-        let (msg, state) = handler(&mut self.vault, secret);
+        let (state, followup) = handler(&mut self.vault, secret);
         self.state = state;
-        msg
+        self.set_followup(followup);
     }
 
     fn require_secret(&self) -> bool {
@@ -202,7 +236,7 @@ impl cp::CommandProcessor for VaultProcessor {
         todo!()
     }
 
-    fn help(&self) -> String {
+    fn help(&self) {
         todo!()
     }
 }

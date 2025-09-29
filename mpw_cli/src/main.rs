@@ -50,11 +50,11 @@ fn run() -> Result<(), AppError> {
         }
 
         if vp.require_raw() {
-            println!("{}", vp.process_raw(&user_input));
+            vp.process_raw(&user_input);
         } else if vp.require_secret() {
-            println!("{}", vp.process_secret(user_input.into()));
+            vp.process_secret(user_input.into());
         } else {
-            println!("{}", vp.process_command(&user_input));
+            vp.process_command(&user_input);
         }
 
         user_input = "".into();
