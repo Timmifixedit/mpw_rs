@@ -10,7 +10,7 @@ const ENDL: &str = "\r\n";
 const ENDL: &str = "\n";
 
 #[derive(Debug, thiserror::Error)]
-enum CreationError {
+pub enum CreationError {
     #[error("Invalid JSON {0}")]
     InvalidJson(#[from] serde_json::Error),
     #[error("IO Error {0}")]
@@ -18,13 +18,13 @@ enum CreationError {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct Entry {
+pub struct Entry {
     value: PathBuf,
     default: bool,
 }
 
 #[derive(thiserror::Error, Debug)]
-enum EntryManagerError {
+pub enum PathManagerError {
     #[error("Entry '{0}' not found")]
     EntryNotFound(String),
     #[error("Entry '{0}' already exists")]
@@ -36,7 +36,7 @@ enum EntryManagerError {
 }
 
 /// Holds named file system entries.
-struct PathManager {
+pub struct PathManager {
     entries: HashMap<String, PathBuf>,
     default: Option<String>,
 }
@@ -45,7 +45,7 @@ impl PathManager {
     /// Creates an instance from a deserialized dictionary.
     /// # Parameters
     /// * `entries`: entries to manage
-    fn new(entries: HashMap<String, Entry>) -> PathManager {
+    pub fn new(entries: HashMap<String, Entry>) -> PathManager {
         let mut default = None;
         for (k, v) in &entries {
             if v.default {
@@ -69,7 +69,7 @@ impl PathManager {
     /// * `PathManager`: instance
     /// # Errors
     /// * `CreationError`: if the JSON string is invalid
-    fn from_json(json: &str) -> Result<PathManager, CreationError> {
+    pub fn from_json(json: &str) -> Result<PathManager, CreationError> {
         let entries: HashMap<String, Entry> = serde_json::from_str(json)?;
         Ok(PathManager::new(entries))
     }
@@ -79,7 +79,7 @@ impl PathManager {
     /// * `path`: path to save to
     /// # Errors
     /// * `CreationError`: if the file cannot be written
-    fn save(&self, path: &str) -> Result<(), CreationError> {
+    pub fn save(&self, path: &str) -> Result<(), CreationError> {
         let file = std::fs::File::create(path)?;
         let writer = std::io::BufWriter::new(file);
         serde_json::to_writer(writer, &self.entries)?;
@@ -93,7 +93,7 @@ impl PathManager {
     /// * `PathManager`: instance
     /// # Errors
     /// * `CreationError`: if the file cannot be read or is invalid
-    fn load(path: &Path) -> Result<Self, CreationError> {
+    pub fn load(path: &Path) -> Result<Self, CreationError> {
         let file = std::fs::File::open(path)?;
         let reader = std::io::BufReader::new(file);
         let entries: HashMap<String, Entry> = serde_json::from_reader(reader)?;
@@ -105,7 +105,7 @@ impl PathManager {
     /// * `show_val`: if true, the values are shown
     /// # Returns
     /// * `String`: string with all entries
-    fn list_entries(&self, show_val: bool) -> String {
+    pub fn list_entries(&self, show_val: bool) -> String {
         let mut entries = String::new();
         for (k, v) in &self.entries {
             let default = self.default.as_ref().map_or_else(|| false, |d| k == d);
@@ -122,7 +122,7 @@ impl PathManager {
     /// Returns the default entry.
     /// # Returns
     /// The default entry or nothing if no default entry exits.
-    fn get_default(&self) -> Option<&Path> {
+    pub fn get_default(&self) -> Option<&Path> {
         self.entries.get(self.default.as_ref()?).map(|v| v.as_path())
     }
 
@@ -131,7 +131,7 @@ impl PathManager {
     /// * `key`: name of the entry
     /// # Returns
     /// The entry or nothing if no entry with the given name exists.
-    fn get(&self, key: &str) -> Option<&Path> {
+    pub fn get(&self, key: &str) -> Option<&Path> {
         self.entries.get(key).map(|v| v.as_path())
     }
 
@@ -140,15 +140,15 @@ impl PathManager {
     /// * `key`: name of the entry
     /// # Errors
     /// * `EntryManagerError`: if the entry does not exist
-    fn set_default(&mut self, key: &str) -> Result<(), EntryManagerError> {
+    pub fn set_default(&mut self, key: &str) -> Result<(), PathManagerError> {
         self.get(key)
-            .ok_or(EntryManagerError::EntryNotFound(key.to_string()))?;
+            .ok_or(PathManagerError::EntryNotFound(key.to_string()))?;
         self.default = Some(key.to_string());
         Ok(())
     }
 
     /// Clears the default entry.
-    fn clear_default(&mut self) {
+    pub fn clear_default(&mut self) {
         self.default = None;
     }
 
@@ -159,17 +159,17 @@ impl PathManager {
     /// * `default`: if true, the entry is set as default
     /// # Errors
     /// * `EntryManagerError`: if the entry already exists or the path does not exist
-    fn add(&mut self, key: String, value: PathBuf, default: bool) -> Result<(), EntryManagerError> {
+    pub fn add(&mut self, key: String, value: PathBuf, default: bool) -> Result<(), PathManagerError> {
         if key.is_empty() {
-            return Err(EntryManagerError::EmptyName);
+            return Err(PathManagerError::EmptyName);
         }
 
         if self.get(&key).is_some() {
-            return Err(EntryManagerError::EntryExists(key.to_string()));
+            return Err(PathManagerError::EntryExists(key.to_string()));
         }
 
         if !value.exists() {
-            return Err(EntryManagerError::InvalidPath);
+            return Err(PathManagerError::InvalidPath);
         }
 
         self.entries.insert(key.clone(), value);
@@ -180,7 +180,7 @@ impl PathManager {
     /// Removes an entry.
     /// # Parameters
     /// * `key`: name of the entry
-    fn remove(&mut self, key: &str) {
+    pub fn remove(&mut self, key: &str) {
         self.entries.remove(key);
         if self.default.is_some() && self.default.as_ref().unwrap() == key {
             self.default = None;
