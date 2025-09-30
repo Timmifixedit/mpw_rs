@@ -3,12 +3,13 @@ mod vault_processor;
 
 use crate::command_processor::CommandProcessor;
 use mpw_core::vault::VaultError;
-use rpassword::prompt_password;
 use rustyline::DefaultEditor;
 use rustyline::error::ReadlineError;
 use std::env;
 use std::path::Path;
 use std::process::exit;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use thiserror;
 
 #[derive(thiserror::Error, Debug)]
@@ -37,14 +38,31 @@ fn run() -> Result<(), AppError> {
 
     let mut rl = DefaultEditor::new().expect("Failed to create readline editor");
 
-    let master_pw = prompt_password("Enter master password")
-        .expect("Failed to read password")
-        .into();
-    vault.unlock(master_pw)?;
+    // Set up Ctrl-C handler
+    let interrupted = Arc::new(AtomicBool::new(false));
+    let interrupted_clone = interrupted.clone();
+
+    ctrlc::set_handler(move || {
+        interrupted_clone.store(true, Ordering::SeqCst);
+    })
+    .expect("Error setting Ctrl-C handler");
+
+    println!("Enter master password:");
+    let master_pw = rpassword::read_password().expect("Failed to read master password");
+
+    if interrupted.load(Ordering::SeqCst) {
+        println!("^C");
+        return Ok(());
+    }
+
+    vault.unlock(master_pw.trim().into())?;
 
     let mut vp = vault_processor::VaultProcessor::new(vault);
 
     loop {
+        // Reset the interrupted flag at the start of each loop
+        interrupted.store(false, Ordering::SeqCst);
+
         let prompt = if vp.require_secret() {
             "Password: "
         } else if vp.require_raw() {
@@ -53,17 +71,31 @@ fn run() -> Result<(), AppError> {
             "> "
         };
 
-        if vp.require_secret() {
-            let secret = prompt_password(prompt).expect("Failed to read password").into();
-            vp.process_secret(secret);
-            continue;
-        }
+        let readline = if vp.require_secret() {
+            // Use rpassword for secret input (masked)
+            print!("{}", prompt);
+            use std::io::Write;
+            std::io::stdout().flush().expect("Failed to flush stdout");
 
-        let readline = rl.readline(prompt);
+            let result = rpassword::read_password().map_err(|e| ReadlineError::Io(e));
+
+            // Check if Ctrl-C was pressed during password input
+            if interrupted.load(Ordering::SeqCst) {
+                Err(ReadlineError::Interrupted)
+            } else {
+                result
+            }
+        } else {
+            // Use rustyline for regular input
+            rl.readline(prompt)
+        };
+
         match readline {
             Ok(line) => {
-                rl.add_history_entry(&line)
-                    .expect("Failed to add history entry");
+                if !vp.require_secret() {
+                    rl.add_history_entry(&line)
+                        .expect("Failed to add history entry");
+                }
                 let input = line.trim();
                 if input == "exit" {
                     break;
@@ -76,6 +108,8 @@ fn run() -> Result<(), AppError> {
 
                 if vp.require_raw() {
                     vp.process_raw(input);
+                } else if vp.require_secret() {
+                    vp.process_secret(input.into());
                 } else {
                     vp.process_command(input);
                 }
