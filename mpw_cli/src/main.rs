@@ -3,11 +3,12 @@ mod command_processor;
 
 use mpw_core::vault::VaultError;
 use std::env;
-use std::io::stdin;
 use std::path::Path;
 use std::process::exit;
 use thiserror;
 use crate::command_processor::CommandProcessor;
+use rustyline::error::ReadlineError;
+use rustyline::DefaultEditor;
 
 #[derive(thiserror::Error, Debug)]
 enum AppError {
@@ -33,31 +34,56 @@ fn run() -> Result<(), AppError> {
 
     let vault_path = Path::new(&args[1]);
     let mut vault = mpw_core::vault::Vault::load(vault_path.into())?;
-    let mut user_input = String::new();
+    
+    let mut rl = DefaultEditor::new().expect("Failed to create readline editor");
+    
     println!("Enter master password:");
-    stdin()
-        .read_line(&mut user_input)
-        .expect("Failed to read user input");
-    let master_pw = user_input.trim().into();
-    vault.unlock(master_pw)?;
+    let master_pw = rl.readline("").expect("Failed to read master password");
+    vault.unlock(master_pw.trim().into())?;
+    
     let mut vp = vault_processor::VaultProcessor::new(vault);
-    user_input.clear();
+    
     loop {
-        stdin().read_line(&mut user_input).expect("Failed to read user input");
-        user_input = user_input.trim().to_string();
-        if user_input == "exit" {
-            break;
-        }
-
-        if vp.require_raw() {
-            vp.process_raw(&user_input);
-        } else if vp.require_secret() {
-            vp.process_secret(user_input.into());
+        let prompt = if vp.require_secret() {
+            "Password: "
+        } else if vp.require_raw() {
+            "... "
         } else {
-            vp.process_command(&user_input);
-        }
+            "> "
+        };
+        
+        let readline = rl.readline(prompt);
+        match readline {
+            Ok(line) => {
+                rl.add_history_entry(&line).expect("Failed to add history entry");
+                let input = line.trim();
+                if input == "exit" {
+                    break;
+                }
 
-        user_input = "".into();
+                if vp.require_raw() {
+                    vp.process_raw(input);
+                } else if vp.require_secret() {
+                    vp.process_secret(input.into());
+                } else {
+                    vp.process_command(input);
+                }
+            }
+            Err(ReadlineError::Interrupted) => {
+                // Ctrl+C was pressed
+                vp.handle_cancel();
+                println!("^C");
+            }
+            Err(ReadlineError::Eof) => {
+                // Ctrl+D was pressed
+                println!("Exiting...");
+                break;
+            }
+            Err(err) => {
+                eprintln!("Error reading input: {}", err);
+                break;
+            }
+        }
     }
     Ok(())
 }

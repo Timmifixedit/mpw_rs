@@ -226,7 +226,10 @@ impl cp::CommandProcessor for VaultProcessor {
             panic!("Invalid state {:?}", self.state);
         }
 
-        todo!()
+        let handler = self.process_raw.take().expect("No raw handler set");
+        let (state, followup) = handler(&mut self.vault, command.to_string());
+        self.state = state;
+        self.set_followup(followup);
     }
 
     fn process_secret(&mut self, secret: SecureString) {
@@ -249,7 +252,11 @@ impl cp::CommandProcessor for VaultProcessor {
     }
 
     fn handle_cancel(&mut self) {
-        todo!()
+        if self.state == VaultState::EnterPw || self.state == VaultState::RawInput {
+            self.state = VaultState::Unlocked;
+            self.process_raw = None;
+            self.process_secret = None;
+        }
     }
 
     fn help(&self) {
