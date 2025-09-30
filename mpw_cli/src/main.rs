@@ -69,6 +69,11 @@ fn run() -> Result<(), AppError> {
                     break;
                 }
 
+                if input == "clear" {
+                    rl.clear_screen().expect("Failed to clear screen");
+                    continue;
+                }
+
                 if vp.require_raw() {
                     vp.process_raw(input);
                 } else {
