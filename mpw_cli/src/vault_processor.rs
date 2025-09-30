@@ -80,6 +80,39 @@ pub struct Remove {
 #[command(about = "change master password", long_about = None)]
 pub struct ChangePw {}
 
+#[derive(Debug, Clone, clap::ValueEnum, PartialEq, Eq, PartialOrd, Ord)]
+enum Verbosity {
+    Quiet,
+    Normal,
+    All,
+}
+
+#[derive(Debug, Args)]
+#[command(about = "encrypt file system entries", long_about = None)]
+pub struct Enc {
+    #[arg(required = true)]
+    names: Vec<String>,
+
+    #[arg(short, long, default_value = "false")]
+    path: bool,
+
+    #[arg(short, long, default_value = "quiet")]
+    verbose: Verbosity,
+}
+
+#[derive(Debug, Args)]
+#[command(about = "decrypt file system entries", long_about = None)]
+pub struct Dec {
+    #[arg(required = true)]
+    names: Vec<String>,
+
+    #[arg(short, long, default_value = "false")]
+    path: bool,
+
+    #[arg(short, long, default_value = "quiet")]
+    verbose: Verbosity,
+}
+
 #[derive(Debug, Subcommand)]
 enum VaultCommand {
     #[command(name = "get")]
@@ -92,6 +125,10 @@ enum VaultCommand {
     Remove(Remove),
     #[command(name = "chpw")]
     ChangePw(ChangePw),
+    #[command(name = "enc")]
+    Enc(Enc),
+    #[command(name = "dec")]
+    Dec(Dec),
 }
 
 #[derive(Debug, Parser)]
@@ -113,6 +150,8 @@ impl Handler for VaultCommand {
             VaultCommand::List(args) => args.handle(vault, clipboard),
             VaultCommand::Remove(args) => args.handle(vault, clipboard),
             VaultCommand::ChangePw(args) => args.handle(vault, clipboard),
+            VaultCommand::Enc(args) => args.handle(vault, clipboard),
+            VaultCommand::Dec(args) => args.handle(vault, clipboard),
         }
     }
 }
@@ -214,6 +253,54 @@ impl Handler for List {
             println!("{}", entry);
         }
         (VaultState::Unlocked, Followup::None)
+    }
+}
+
+impl Handler for Enc {
+    fn handle(self, vault: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup) {
+        if self.path {
+            for name in &self.names {
+                if let Err(err) = vault.encrypt_file(std::path::Path::new(name)) {
+                    match &self.verbose {
+                        Verbosity::Quiet => {}
+                        Verbosity::Normal => {
+                            println!("Failed to encrypt file {}", name);
+                        }
+                        Verbosity::All => {
+                            println!("Failed to encrypt file {}: {}", name, err.to_string());
+                        }
+                    }
+                }
+            }
+
+            return (VaultState::Unlocked, Followup::None);
+        }
+
+        todo!()
+    }
+}
+
+impl Handler for Dec {
+    fn handle(self, vault: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup) {
+        if self.path {
+            for name in &self.names {
+                if let Err(err) = vault.decrypt_file(std::path::Path::new(name)) {
+                    match &self.verbose {
+                        Verbosity::Quiet => {}
+                        Verbosity::Normal => {
+                            println!("Failed to decrypt file {}", name);
+                        },
+                        Verbosity::All => {
+                            println!("Failed to decrypt file {}: {}", name, err.to_string());
+                        }
+                    }
+                }
+            }
+
+            return (VaultState::Unlocked, Followup::None);
+        }
+
+        todo!()
     }
 }
 

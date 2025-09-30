@@ -5,19 +5,19 @@ use crate::path_manager::{CreationError, PathManager};
 use crate::vault::VaultError::VaultFileNotFound;
 use openssl::rand::rand_bytes;
 use secure_string::SecureString;
-use std::io::Write;
+use std::io::{Seek, Write};
 use std::num::NonZeroU32;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use thiserror;
 
-const VLT_EXTENSION: &'static str = ".vlt";
+const VLT_EXTENSION: &'static str = "vlt";
 const PW_PATH: &'static str = "Passwords";
-const VAULT_FILE: &'static str = constcat::concat!("Vault", VLT_EXTENSION);
+const VAULT_FILE: &'static str = constcat::concat!("Vault", ".", VLT_EXTENSION);
 const PW_EXTENSION: &'static str = "pwEnc";
 const LOGIN_EXTENSION: &'static str = "lgEnc";
 const FILE_EXTENSION: &'static str = "enc";
-const FILE_LIST: &'static str = constcat::concat!("EncryptedFiles", VLT_EXTENSION);
-const CONFIG_FILE: &'static str = constcat::concat!("config", VLT_EXTENSION);
+const FILE_LIST: &'static str = constcat::concat!("EncryptedFiles", ".", VLT_EXTENSION);
+const CONFIG_FILE: &'static str = constcat::concat!("config", ".", VLT_EXTENSION);
 
 #[derive(thiserror::Error, Debug)]
 pub enum VaultError {
@@ -39,6 +39,14 @@ pub enum VaultError {
     AlreadyExists(String),
     #[error("Invalid parameter '{0}'")]
     InvalidParameter(String),
+    #[error("{item} is a protected file within the vault directory {vault_dir}")]
+    VaultItem { item: String, vault_dir: String },
+    #[error("{0} is a protected item that already belongs to a vault.")]
+    ProtectedItem(String),
+    #[error("{0} is already encrypted")]
+    AlreadyEncrypted(String),
+    #[error("{0} is not encrypted")]
+    NotEncrypted(String),
 }
 
 type VaultResult<T> = Result<T, VaultError>;
@@ -241,6 +249,10 @@ impl Vault {
     }
 
     pub fn change_master_password(&mut self, master_pw: SecureString) -> Result<(), VaultError> {
+        if self.is_locked() {
+            return VaultError::VaultLocked.into();
+        }
+
         let vlt_file_path = self.working_dir.join(VAULT_FILE);
         let (vlt_data, master_key) = cryptography::generate_vault_data(master_pw)?;
         self.master_key = Some(master_key);
@@ -251,6 +263,10 @@ impl Vault {
     }
 
     pub fn list_passwords(&self, search: Option<&str>) -> Result<Vec<String>, VaultError> {
+        if self.is_locked() {
+            return VaultError::VaultLocked.into();
+        }
+
         let mut ret = vec![];
         for entry in std::fs::read_dir(self.working_dir.join(PW_PATH))? {
             let entry = entry?;
@@ -258,7 +274,11 @@ impl Vault {
             if path.is_file()
                 && path.file_stem().is_some()
                 && path.extension().unwrap_or_default() == PW_EXTENSION
-                && path.file_stem().unwrap().to_string_lossy().contains(search.unwrap_or_default())
+                && path
+                    .file_stem()
+                    .unwrap()
+                    .to_string_lossy()
+                    .contains(search.unwrap_or_default())
             {
                 ret.push(path.file_stem().unwrap().to_string_lossy().to_string());
             }
@@ -272,8 +292,15 @@ impl Vault {
     }
 
     pub fn delete_password(&self, pw_name: &str) -> Result<(), VaultError> {
+        if self.is_locked() {
+            return VaultError::VaultLocked.into();
+        }
+
         let pw_path = self
-            .working_dir.join(PW_PATH).join(pw_name).with_extension(PW_EXTENSION);
+            .working_dir
+            .join(PW_PATH)
+            .join(pw_name)
+            .with_extension(PW_EXTENSION);
         let login_path = self
             .working_dir
             .join(PW_PATH)
@@ -287,6 +314,132 @@ impl Vault {
         if login_path.exists() {
             std::fs::remove_file(login_path)?;
         }
+        Ok(())
+    }
+
+    fn contains(&self, path: &Path) -> bool {
+        for c in path.components() {
+            if c == std::path::Component::Normal(self.working_dir.as_ref()) {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    fn verify_file_path(&self, file_path: &Path) -> Result<(), VaultError> {
+        use std::io::Error as IO;
+        use std::io::ErrorKind as EK;
+        let path_str = file_path.to_string_lossy();
+        if file_path.is_dir() {
+            return Err(IO::new(EK::IsADirectory, format!("{path_str} is a directory")).into());
+        }
+
+        if !file_path.exists() {
+            return Err(IO::new(EK::NotFound, format!("File '{path_str}' not found")).into());
+        }
+
+        if self.contains(file_path) {
+            return VaultError::VaultItem {
+                item: path_str.to_string(),
+                vault_dir: self.working_dir.to_string_lossy().to_string(),
+            }
+            .into();
+        }
+
+        if file_path.extension().is_some_and(|e| {
+            [PW_EXTENSION, VLT_EXTENSION]
+                .iter()
+                .any(|c| *c == e.to_string_lossy().as_ref())
+        }) {
+            return VaultError::ProtectedItem(path_str.to_string()).into();
+        }
+
+        Ok(())
+    }
+
+    pub fn encrypt_file(&self, file_path: &Path) -> Result<(), VaultError> {
+        use std::io::Error as IO;
+        use std::io::ErrorKind as EK;
+        if self.is_locked() {
+            return VaultError::VaultLocked.into();
+        }
+
+        self.verify_file_path(file_path)?;
+        if file_path
+            .extension()
+            .is_some_and(|e| e.to_string_lossy() == FILE_EXTENSION)
+        {
+            return VaultError::AlreadyEncrypted(file_path.to_string_lossy().to_string()).into();
+        }
+
+        let dest_path = file_path.with_extension(
+            file_path
+                .extension()
+                .map_or_else(|| "".into(), |e| e.to_string_lossy().to_string() + ".")
+                + FILE_EXTENSION,
+        );
+        if dest_path.exists() {
+            return Err(IO::new(
+                EK::AlreadyExists,
+                format!(
+                    "Encryption target file already exists: {}",
+                    dest_path.to_string_lossy()
+                ),
+            )
+            .into());
+        }
+
+        let mut encrypted = std::fs::File::create(dest_path)?;
+        let src = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .truncate(false)
+            .open(file_path)?;
+        let (header, key, iv) =
+            cryptography::generate_file_header(self.master_key.as_ref().unwrap())?;
+        let header: Vec<u8> = header.into();
+        encrypted.write_all(header.as_slice())?;
+        cryptography::crypto_write(src, &mut encrypted, &key, &iv)?;
+        std::fs::remove_file(file_path)?;
+        Ok(())
+    }
+
+    pub fn decrypt_file(&self, file_path: &Path) -> Result<(), VaultError> {
+        use std::io::Error as IO;
+        use std::io::ErrorKind as EK;
+        if self.is_locked() {
+            return VaultError::VaultLocked.into();
+        }
+
+        self.verify_file_path(file_path)?;
+        if file_path
+            .extension()
+            .is_some_and(|e| e.to_string_lossy() != FILE_EXTENSION)
+        {
+            return VaultError::NotEncrypted(file_path.to_string_lossy().to_string()).into();
+        }
+
+        let dest_path = file_path.with_extension("");
+        if dest_path.exists() {
+            return Err(IO::new(
+                EK::AlreadyExists,
+                format!(
+                    "Decryption target file already exists: {}",
+                    dest_path.to_string_lossy()
+                ),
+            )
+            .into());
+        }
+
+        let mut src = std::fs::File::open(file_path)?;
+        let header = cryptography::FileHeader::load(&src)?;
+        let file_key =
+            cryptography::decrypt_file_header(&header, &self.master_key.as_ref().unwrap())?;
+        src.seek(std::io::SeekFrom::Start(header.data_offset() as u64))?;
+        let mut dest = std::fs::File::create(dest_path)?;
+        cryptography::crypto_read(src, &mut dest, &file_key, &header.iv)?;
+        std::fs::remove_file(file_path)?;
         Ok(())
     }
 }
