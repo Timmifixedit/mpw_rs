@@ -63,6 +63,19 @@ pub struct List {
     pub files: bool,
 }
 
+#[derive(Debug, Args)]
+#[command(about = "remove passwords / files", long_about = None)]
+pub struct Remove {
+    #[arg(required = true)]
+    pub names: Vec<String>,
+
+    #[arg(short, long, default_value = "false")]
+    pub files: bool,
+
+    #[arg(short, long, default_value = "false")]
+    pub yes: bool,
+}
+
 #[derive(Debug, Subcommand)]
 enum VaultCommand {
     #[command(name = "get")]
@@ -71,6 +84,8 @@ enum VaultCommand {
     Add(Add),
     #[command(name = "ls")]
     List(List),
+    #[command(name = "rm")]
+    Remove(Remove),
 }
 
 #[derive(Debug, Parser)]
@@ -90,6 +105,7 @@ impl Handler for VaultCommand {
             VaultCommand::Get(args) => args.handle(vault, clipboard),
             VaultCommand::Add(args) => args.handle(vault, clipboard),
             VaultCommand::List(args) => args.handle(vault, clipboard),
+            VaultCommand::Remove(args) => args.handle(vault, clipboard),
         }
     }
 }
@@ -179,16 +195,54 @@ impl Handler for List {
         if self.files {
             entries = vault.list_files(self.path, self.search.as_deref());
         } else {
-            entries = vault.list_passwords(self.search.as_deref()).unwrap_or_else(|e| {
-                println!("{}", e.to_string());
-                vec![]
-            })
+            entries = vault
+                .list_passwords(self.search.as_deref())
+                .unwrap_or_else(|e| {
+                    println!("{}", e.to_string());
+                    vec![]
+                })
         }
 
         for entry in entries {
             println!("{}", entry);
         }
         (VaultState::Unlocked, Followup::None)
+    }
+}
+
+impl Handler for Remove {
+    fn handle(self, vault: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup) {
+        let remove = move |vlt: &mut Vault| {
+            for name in self.names {
+                if self.files {
+                    todo!()
+                } else {
+                    vlt.delete_password(&name).map_or_else(
+                        |e| println!("failed to delete password {}: {}", name, e.to_string()),
+                        |_| println!("Successfully deleted password {}", name),
+                    );
+                }
+            }
+        };
+
+        if !self.yes && !self.files {
+            println!("Please confirm the deletion of the passwords (type 'yes' to confirm)");
+            (
+                VaultState::RawInput,
+                Followup::Raw(Box::new(move |vlt, cmd| {
+                    if cmd != "yes" {
+                        println!("Aborted. Type 'yes' to confirm removal");
+                        return (VaultState::Unlocked, Followup::None);
+                    }
+
+                    remove(vlt);
+                    (VaultState::Unlocked, Followup::None)
+                })),
+            )
+        } else {
+            remove(vault);
+            (VaultState::Unlocked, Followup::None)
+        }
     }
 }
 
@@ -257,7 +311,7 @@ impl cp::CommandProcessor for VaultProcessor {
     }
 
     fn process_raw(&mut self, command: &str) {
-        if self.state != VaultState::Unlocked {
+        if self.state != VaultState::RawInput {
             panic!("Invalid state {:?}", self.state);
         }
 

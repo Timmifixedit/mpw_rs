@@ -270,4 +270,23 @@ impl Vault {
     pub fn list_files(&self, show_path: bool, search_string: Option<&str>) -> Vec<String> {
         self.file_list.list_entries(show_path, search_string)
     }
+
+    pub fn delete_password(&self, pw_name: &str) -> Result<(), VaultError> {
+        let pw_path = self
+            .working_dir.join(PW_PATH).join(pw_name).with_extension(PW_EXTENSION);
+        let login_path = self
+            .working_dir
+            .join(PW_PATH)
+            .join(pw_name)
+            .with_extension(LOGIN_EXTENSION);
+        if !pw_path.exists() {
+            return VaultError::PasswordNotFound(pw_name.to_string()).into();
+        }
+
+        std::fs::remove_file(pw_path)?;
+        if login_path.exists() {
+            std::fs::remove_file(login_path)?;
+        }
+        Ok(())
+    }
 }
