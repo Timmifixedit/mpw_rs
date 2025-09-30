@@ -50,12 +50,27 @@ pub struct Add {
     pub login: Option<String>,
 }
 
+#[derive(Debug, Args)]
+#[command(about = "list all passwords / files", long_about = None)]
+pub struct List {
+    #[arg(required = false, default_value = None)]
+    pub search: Option<String>,
+
+    #[arg(short, long, default_value = "false")]
+    pub path: bool,
+
+    #[arg(short, long, default_value = "false")]
+    pub files: bool,
+}
+
 #[derive(Debug, Subcommand)]
 enum VaultCommand {
     #[command(name = "get")]
     Get(Get),
     #[command(name = "add")]
     Add(Add),
+    #[command(name = "ls")]
+    List(List),
 }
 
 #[derive(Debug, Parser)]
@@ -74,6 +89,7 @@ impl Handler for VaultCommand {
         match self {
             VaultCommand::Get(args) => args.handle(vault, clipboard),
             VaultCommand::Add(args) => args.handle(vault, clipboard),
+            VaultCommand::List(args) => args.handle(vault, clipboard),
         }
     }
 }
@@ -111,7 +127,7 @@ impl Handler for Get {
 impl Handler for Add {
     fn handle(self, vault: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup) {
         let result = (|| {
-            let exists = vault.list_passwords()?.contains(&self.name);
+            let exists = vault.list_passwords(None)?.contains(&self.name);
             if exists && !self.overwrite {
                 return Err(VaultError::AlreadyExists(self.name.clone()));
             }
@@ -154,6 +170,25 @@ impl Handler for Add {
             println!("{}", e.to_string());
             (VaultState::Unlocked, Followup::None)
         })
+    }
+}
+
+impl Handler for List {
+    fn handle(self, vault: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup) {
+        let entries;
+        if self.files {
+            entries = vault.list_files(self.path, self.search.as_deref());
+        } else {
+            entries = vault.list_passwords(self.search.as_deref()).unwrap_or_else(|e| {
+                println!("{}", e.to_string());
+                vec![]
+            })
+        }
+
+        for entry in entries {
+            println!("{}", entry);
+        }
+        (VaultState::Unlocked, Followup::None)
     }
 }
 

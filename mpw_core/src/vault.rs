@@ -250,7 +250,7 @@ impl Vault {
         Ok(())
     }
 
-    pub fn list_passwords(&self) -> Result<Vec<String>, VaultError> {
+    pub fn list_passwords(&self, search: Option<&str>) -> Result<Vec<String>, VaultError> {
         let mut ret = vec![];
         for entry in std::fs::read_dir(self.working_dir.join(PW_PATH))? {
             let entry = entry?;
@@ -258,11 +258,16 @@ impl Vault {
             if path.is_file()
                 && path.file_stem().is_some()
                 && path.extension().unwrap_or_default() == PW_EXTENSION
+                && path.file_stem().unwrap().to_string_lossy().contains(search.unwrap_or_default())
             {
                 ret.push(path.file_stem().unwrap().to_string_lossy().to_string());
             }
         }
 
         Ok(ret)
+    }
+
+    pub fn list_files(&self, show_path: bool, search_string: Option<&str>) -> Vec<String> {
+        self.file_list.list_entries(show_path, search_string)
     }
 }

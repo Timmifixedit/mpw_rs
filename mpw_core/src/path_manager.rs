@@ -104,16 +104,20 @@ impl PathManager {
     /// # Parameters
     /// * `show_val`: if true, the values are shown
     /// # Returns
-    /// * `String`: string with all entries
-    pub fn list_entries(&self, show_val: bool) -> String {
-        let mut entries = String::new();
+    /// * vector string with all entries
+    pub fn list_entries(&self, show_val: bool, search_string: Option<&str>) -> Vec<String> {
+        let mut entries = Vec::with_capacity(self.entries.len());
         for (k, v) in &self.entries {
+            if let Some(s) = search_string && !k.contains(s){
+                continue;
+            }
+
             let default = self.default.as_ref().map_or_else(|| false, |d| k == d);
             let s = format!("{}{}", if default { "*" } else { "" }, k);
             if show_val {
-                entries.push_str(&format!("{s} => {}{ENDL}", v.to_string_lossy()));
+                entries.push(format!("{s} => {}{ENDL}", v.to_string_lossy()));
             } else {
-                entries.push_str(&format!("{s}{ENDL}"));
+                entries.push(format!("{s}{ENDL}"));
             }
         }
         entries
