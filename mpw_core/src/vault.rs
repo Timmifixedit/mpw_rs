@@ -386,7 +386,7 @@ impl Vault {
         }
 
         if !file_path.exists() {
-            return Err(IO::new(EK::NotFound, format!("File '{path_str}' not found")).into());
+            return Err(IO::new(EK::NotFound, format!("Item '{path_str}' not found")).into());
         }
 
         if file_path.starts_with(&self.working_dir) {
@@ -495,7 +495,7 @@ impl Vault {
 
     fn recursive_operation<F>(&self, dir_path: &Path, op: &F) -> Result<(), VaultErrorStack>
     where
-        F: Fn(&Path) -> Result<(), VaultError>
+        F: Fn(&Path) -> Result<(), VaultError>,
     {
         if self.is_locked() {
             return Err(VaultError::VaultLocked.into());
@@ -519,11 +519,7 @@ impl Vault {
             let _ = body();
         }
 
-        if !errors.empty() {
-            Err(errors)
-        } else {
-            Ok(())
-        }
+        if !errors.empty() { Err(errors) } else { Ok(()) }
     }
 
     pub fn encrypt_directory(&self, dir_path: &Path) -> Result<(), VaultErrorStack> {
