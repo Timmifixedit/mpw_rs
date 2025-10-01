@@ -208,7 +208,10 @@ impl PathManager {
         }
 
         self.entries.insert(key.clone(), value);
-        self.default = Some(key);
+        if default {
+            self.default = Some(key);
+        }
+
         Ok(())
     }
 
@@ -340,5 +343,38 @@ mod tests {
         assert_eq!(pm.entries.len(), 2);
         assert!(pm.get("test1").is_none());
         assert!(pm.get_default().is_none());
+    }
+
+    #[test]
+    fn test_add() {
+        let file = NamedTempFile::new().unwrap();
+        let mut pm = PathManager::new(generate_data());
+        assert_eq!(pm.entries.len(), 4);
+        assert!(pm.add("test4".to_string(), file.path().to_owned(), true).is_ok());
+        assert_eq!(pm.entries.len(), 5);
+        assert_eq!(pm.get("test4").unwrap(), file.path());
+        assert_eq!(pm.get_default().unwrap(), file.path());
+        if let Err(err) = pm.add("test4".to_string(), file.path().to_owned(), false) {
+            match err {
+                PathManagerError::EntryExists(_) => {}
+                e => assert!(false, "wrong error {e}"),
+            }
+        } else {
+            assert!(false, "should not be able to add an entry with the same name");
+        }
+
+        if let Err(err) = pm.add("test5".to_string(), PathBuf::from("bla"), false) {
+            match err {
+                PathManagerError::InvalidPath => {}
+                e => assert!(false, "wrong error {e}"),
+            }
+        } else {
+            assert!(false, "should not be able to add an entry with non existing path");
+        }
+
+        let file = NamedTempFile::with_prefix("blabla").unwrap();
+        assert!(pm.add("test5".to_string(), file.path().to_owned(), true).is_ok());
+        assert_eq!(pm.get("test5").unwrap(), file.path());
+        assert_eq!(pm.get_default().unwrap(), file.path());
     }
 }
