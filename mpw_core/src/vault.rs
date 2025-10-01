@@ -40,7 +40,7 @@ pub enum VaultError {
     AlreadyExists(String),
     #[error("Invalid parameter '{0}'")]
     InvalidParameter(String),
-    #[error("{item} is a protected file within the vault directory {vault_dir}")]
+    #[error("{item} is a protected item within the vault directory {vault_dir}")]
     VaultItem { item: String, vault_dir: String },
     #[error("{0} is a protected item that already belongs to a vault.")]
     ProtectedItem(String),
@@ -373,16 +373,6 @@ impl Vault {
         Ok(())
     }
 
-    fn contains(&self, path: &Path) -> bool {
-        for c in path.components() {
-            if c == std::path::Component::Normal(self.working_dir.as_ref()) {
-                return true;
-            }
-        }
-
-        false
-    }
-
     fn verify_file_path(&self, file_path: &Path, expect_dir: bool) -> Result<(), VaultError> {
         use std::io::Error as IO;
         use std::io::ErrorKind as EK;
@@ -399,7 +389,7 @@ impl Vault {
             return Err(IO::new(EK::NotFound, format!("File '{path_str}' not found")).into());
         }
 
-        if self.contains(file_path) {
+        if file_path.starts_with(&self.working_dir) {
             return VaultError::VaultItem {
                 item: path_str.to_string(),
                 vault_dir: self.working_dir.to_string_lossy().to_string(),
