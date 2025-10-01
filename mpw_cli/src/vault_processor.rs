@@ -3,9 +3,10 @@ use arboard;
 use arboard::Clipboard;
 use clap::{Args, Parser, Subcommand};
 use mpw_core::vault;
-use mpw_core::vault::{Vault, VaultError};
+use mpw_core::vault::{Vault, VaultError, VaultErrorStack};
 use secure_string::SecureString;
 use std::num::NonZeroU32;
+use std::path::Path;
 
 type RawHandler = Box<dyn FnOnce(&mut Vault, String) -> (VaultState, Followup)>;
 type SecretHandler = Box<dyn FnOnce(&mut Vault, SecureString) -> (VaultState, Followup)>;
@@ -98,6 +99,9 @@ pub struct Enc {
 
     #[arg(short, long, default_value = "quiet")]
     verbose: Verbosity,
+
+    #[arg(short, long, default_value = "false")]
+    recursive: bool,
 }
 
 #[derive(Debug, Args)]
@@ -111,6 +115,9 @@ pub struct Dec {
 
     #[arg(short, long, default_value = "quiet")]
     verbose: Verbosity,
+
+    #[arg(short, long, default_value = "false")]
+    recursive: bool,
 }
 
 #[derive(Debug, Subcommand)]
@@ -256,12 +263,29 @@ impl Handler for List {
     }
 }
 
-impl Handler for Enc {
-    fn handle(self, vault: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup) {
-        if self.path {
-            for name in &self.names {
-                if let Err(err) = vault.encrypt_file(std::path::Path::new(name)) {
-                    match &self.verbose {
+trait FsHandler {
+    fn process_file(&self, vault: &mut Vault, path: &std::path::Path) -> Result<(), VaultErrorStack>;
+    fn process_dir(&self, vault: &mut Vault, path: &std::path::Path) -> Result<(), VaultErrorStack>;
+    fn get_names(&self) -> &[String];
+    fn is_path(&self) -> bool;
+    fn get_verbosity(&self) -> Verbosity;
+    fn is_recursive(&self) -> bool;
+
+    fn process(&self, vault: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup) {
+        if self.is_path() {
+            for name in self.get_names() {
+                let path = Path::new(name);
+                if path.is_dir() && !self.is_recursive() {
+                    println!("{name} is a directory. Use the recursive flag");
+                    continue;
+                }
+
+                if let Err(err) = if path.is_dir() {
+                    self.process_dir(vault, path)
+                } else {
+                    self.process_file(vault, path)
+                } {
+                    match self.get_verbosity() {
                         Verbosity::Quiet => {}
                         Verbosity::Normal => {
                             println!("Failed to encrypt file {}", name);
@@ -280,27 +304,68 @@ impl Handler for Enc {
     }
 }
 
+impl FsHandler for Enc {
+    fn process_file(&self, vault: &mut Vault, path: &Path) -> Result<(), VaultErrorStack> {
+        vault.encrypt_file(path).map_err(|e| e.into())
+    }
+
+    fn process_dir(&self, vault: &mut Vault, path: &Path) -> Result<(), VaultErrorStack> {
+        vault.encrypt_directory(path)
+    }
+
+    fn get_names(&self) -> &[String] {
+        self.names.as_slice()
+    }
+
+    fn is_path(&self) -> bool {
+        self.path
+    }
+
+    fn get_verbosity(&self) -> Verbosity {
+        self.verbose.clone()
+    }
+
+    fn is_recursive(&self) -> bool {
+        self.recursive
+    }
+}
+
+impl FsHandler for Dec {
+    fn process_file(&self, vault: &mut Vault, path: &Path) -> Result<(), VaultErrorStack> {
+        vault.decrypt_file(path).map_err(|e| e.into())
+    }
+
+    fn process_dir(&self, vault: &mut Vault, path: &Path) -> Result<(), VaultErrorStack> {
+        vault.decrypt_directory(path)
+    }
+
+    fn get_names(&self) -> &[String] {
+        self.names.as_slice()
+    }
+
+    fn is_path(&self) -> bool {
+        self.path
+    }
+
+    fn get_verbosity(&self) -> Verbosity {
+        self.verbose.clone()
+    }
+
+    fn is_recursive(&self) -> bool {
+        self.recursive
+    }
+}
+
+
+impl Handler for Enc {
+    fn handle(self, vault: &mut Vault, clipboard: &mut Clipboard) -> (VaultState, Followup) {
+        self.process(vault, clipboard)
+    }
+}
+
 impl Handler for Dec {
-    fn handle(self, vault: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup) {
-        if self.path {
-            for name in &self.names {
-                if let Err(err) = vault.decrypt_file(std::path::Path::new(name)) {
-                    match &self.verbose {
-                        Verbosity::Quiet => {}
-                        Verbosity::Normal => {
-                            println!("Failed to decrypt file {}", name);
-                        },
-                        Verbosity::All => {
-                            println!("Failed to decrypt file {}: {}", name, err.to_string());
-                        }
-                    }
-                }
-            }
-
-            return (VaultState::Unlocked, Followup::None);
-        }
-
-        todo!()
+    fn handle(self, vault: &mut Vault, clipboard: &mut Clipboard) -> (VaultState, Followup) {
+        self.process(vault, clipboard)
     }
 }
 
