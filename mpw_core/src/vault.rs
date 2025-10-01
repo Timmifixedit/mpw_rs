@@ -5,6 +5,7 @@ use crate::path_manager::{CreationError, PathManager};
 use crate::vault::VaultError::VaultFileNotFound;
 use openssl::rand::rand_bytes;
 use secure_string::SecureString;
+use std::fmt::{Display, Formatter};
 use std::io::{Seek, Write};
 use std::num::NonZeroU32;
 use std::path::{Path, PathBuf};
@@ -47,6 +48,61 @@ pub enum VaultError {
     AlreadyEncrypted(String),
     #[error("{0} is not encrypted")]
     NotEncrypted(String),
+}
+
+#[derive(thiserror::Error, Debug)]
+pub struct VaultErrorStack {
+    errors: Vec<VaultError>,
+}
+
+impl Display for VaultErrorStack {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        for e in &self.errors {
+            writeln!(f, "{}", e)?;
+        }
+        Ok(())
+    }
+}
+
+impl From<VaultError> for VaultErrorStack {
+    fn from(e: VaultError) -> Self {
+        Self { errors: vec![e] }
+    }
+}
+
+impl VaultErrorStack {
+    pub fn new() -> Self {
+        Self { errors: vec![] }
+    }
+
+    pub fn append_if_error<T>(&mut self, expr: Result<T, Self>) -> Result<T, ()> {
+        match expr {
+            Ok(vale) => Ok(vale),
+            Err(e) => {
+                for e in e.errors {
+                    self.errors.push(e);
+                }
+                Err(())
+            }
+        }
+    }
+
+    pub fn add_if_error<T, E>(&mut self, expr: Result<T, E>) -> Result<T, ()>
+    where
+        E: Into<VaultError>,
+    {
+        match expr {
+            Ok(vale) => Ok(vale),
+            Err(e) => {
+                self.errors.push(e.into());
+                Err(())
+            }
+        }
+    }
+
+    pub fn empty(&self) -> bool {
+        self.errors.is_empty()
+    }
 }
 
 type VaultResult<T> = Result<T, VaultError>;
@@ -327,12 +383,16 @@ impl Vault {
         false
     }
 
-    fn verify_file_path(&self, file_path: &Path) -> Result<(), VaultError> {
+    fn verify_file_path(&self, file_path: &Path, expect_dir: bool) -> Result<(), VaultError> {
         use std::io::Error as IO;
         use std::io::ErrorKind as EK;
         let path_str = file_path.to_string_lossy();
-        if file_path.is_dir() {
+        if !expect_dir && file_path.is_dir() {
             return Err(IO::new(EK::IsADirectory, format!("{path_str} is a directory")).into());
+        }
+
+        if expect_dir && file_path.is_file() {
+            return Err(IO::new(EK::NotADirectory, format!("{path_str} is a file")).into());
         }
 
         if !file_path.exists() {
@@ -365,7 +425,7 @@ impl Vault {
             return VaultError::VaultLocked.into();
         }
 
-        self.verify_file_path(file_path)?;
+        self.verify_file_path(file_path, false)?;
         if file_path
             .extension()
             .is_some_and(|e| e.to_string_lossy() == FILE_EXTENSION)
@@ -412,7 +472,7 @@ impl Vault {
             return VaultError::VaultLocked.into();
         }
 
-        self.verify_file_path(file_path)?;
+        self.verify_file_path(file_path, false)?;
         if file_path
             .extension()
             .is_some_and(|e| e.to_string_lossy() != FILE_EXTENSION)
@@ -441,5 +501,35 @@ impl Vault {
         cryptography::crypto_read(src, &mut dest, &file_key, &header.iv)?;
         std::fs::remove_file(file_path)?;
         Ok(())
+    }
+
+    pub fn encrypt_directory(&self, dir_path: &Path) -> Result<(), VaultErrorStack> {
+        if self.is_locked() {
+            return Err(VaultError::VaultLocked.into());
+        }
+
+        self.verify_file_path(dir_path, true)?;
+        let mut errors = VaultErrorStack::new();
+        for entry in std::fs::read_dir(dir_path).map_err(|e| -> VaultError { e.into() })? {
+            let body = || -> Result<(), ()> {
+                let entry = errors.add_if_error(entry)?;
+                let path = entry.path();
+                if path.is_dir() {
+                    errors.append_if_error(self.encrypt_directory(&path))?;
+                } else {
+                    errors.add_if_error(self.encrypt_file(&path))?;
+                }
+
+                Ok(())
+            };
+
+            let _ = body();
+        }
+
+        if !errors.empty() {
+            Err(errors)
+        } else {
+            Ok(())
+        }
     }
 }
