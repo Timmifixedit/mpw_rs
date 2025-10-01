@@ -503,7 +503,10 @@ impl Vault {
         Ok(())
     }
 
-    pub fn encrypt_directory(&self, dir_path: &Path) -> Result<(), VaultErrorStack> {
+    fn recursive_operation<F>(&self, dir_path: &Path, op: &F) -> Result<(), VaultErrorStack>
+    where
+        F: Fn(&Path) -> Result<(), VaultError>
+    {
         if self.is_locked() {
             return Err(VaultError::VaultLocked.into());
         }
@@ -515,9 +518,9 @@ impl Vault {
                 let entry = errors.add_if_error(entry)?;
                 let path = entry.path();
                 if path.is_dir() {
-                    errors.append_if_error(self.encrypt_directory(&path))?;
+                    errors.append_if_error(self.recursive_operation(&path, op))?;
                 } else {
-                    errors.add_if_error(self.encrypt_file(&path))?;
+                    errors.add_if_error(op(&path))?;
                 }
 
                 Ok(())
@@ -531,5 +534,13 @@ impl Vault {
         } else {
             Ok(())
         }
+    }
+
+    pub fn encrypt_directory(&self, dir_path: &Path) -> Result<(), VaultErrorStack> {
+        self.recursive_operation(dir_path, &|p| self.encrypt_file(p))
+    }
+
+    pub fn decrypt_directory(&self, dir_path: &Path) -> Result<(), VaultErrorStack> {
+        self.recursive_operation(dir_path, &|p| self.decrypt_file(p))
     }
 }
