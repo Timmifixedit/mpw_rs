@@ -74,6 +74,28 @@ impl PathManager {
         Ok(PathManager::new(entries))
     }
 
+    /// Serializes the instance to a JSON string.
+    /// # Returns
+    /// * `String`: JSON string
+    /// # Errors
+    /// * `CreationError`: if the JSON string cannot be serialized
+    pub fn to_json(&self) -> Result<String, CreationError> {
+        let entries: HashMap<String, Entry> = self
+            .entries
+            .iter()
+            .map(|item| {
+                (
+                    item.0.clone(),
+                    Entry {
+                        value: item.1.clone(),
+                        default: self.default.as_ref().is_some_and(|d| d == item.0),
+                    },
+                )
+            })
+            .collect();
+        Ok(serde_json::to_string(&entries)?)
+    }
+
     /// Saves the instance to a JSON file.
     /// # Parameters
     /// * `path`: path to save to
@@ -108,7 +130,9 @@ impl PathManager {
     pub fn list_entries(&self, show_val: bool, search_string: Option<&str>) -> Vec<String> {
         let mut entries = Vec::with_capacity(self.entries.len());
         for (k, v) in &self.entries {
-            if let Some(s) = search_string && !k.contains(s){
+            if let Some(s) = search_string
+                && !k.contains(s)
+            {
                 continue;
             }
 
@@ -127,7 +151,9 @@ impl PathManager {
     /// # Returns
     /// The default entry or nothing if no default entry exits.
     pub fn get_default(&self) -> Option<&Path> {
-        self.entries.get(self.default.as_ref()?).map(|v| v.as_path())
+        self.entries
+            .get(self.default.as_ref()?)
+            .map(|v| v.as_path())
     }
 
     /// Returns the entry with the given name.
@@ -163,7 +189,12 @@ impl PathManager {
     /// * `default`: if true, the entry is set as default
     /// # Errors
     /// * `EntryManagerError`: if the entry already exists or the path does not exist
-    pub fn add(&mut self, key: String, value: PathBuf, default: bool) -> Result<(), PathManagerError> {
+    pub fn add(
+        &mut self,
+        key: String,
+        value: PathBuf,
+        default: bool,
+    ) -> Result<(), PathManagerError> {
         if key.is_empty() {
             return Err(PathManagerError::EmptyName);
         }
@@ -189,6 +220,17 @@ impl PathManager {
         if self.default.is_some() && self.default.as_ref().unwrap() == key {
             self.default = None;
         }
+    }
+
+    /// Checks if a given key exists in the entries.
+    /// # Arguments
+    /// * `key` - key to search for in the entries.
+    ///
+    /// # Returns
+    /// * `true` if the specified key exists in the entries; otherwise, `false`.
+    ///
+    pub fn contains(&self, key: &str) -> bool {
+        self.entries.contains_key(key)
     }
 }
 
@@ -246,6 +288,14 @@ mod tests {
     }
 
     #[test]
+    fn test_json_round_trip() {
+        let pm = PathManager::new(generate_data());
+        let json = pm.to_json().unwrap();
+        let pm2 = PathManager::from_json(&json).unwrap();
+        assert_eq!(pm.entries, pm2.entries);
+    }
+
+    #[test]
     fn test_load() {
         let file = NamedTempFile::new().unwrap();
         let data = generate_data();
@@ -274,7 +324,6 @@ mod tests {
         assert!(pm.set_default("asft44").is_err());
         pm.clear_default();
         assert!(pm.get_default().is_none());
-
     }
 
     #[test]
