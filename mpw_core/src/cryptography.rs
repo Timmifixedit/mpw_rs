@@ -400,9 +400,9 @@ pub mod util {
 ///
 /// # Examples:
 /// ```
-/// use mpw_core::cryptography::VaultData;
+/// use mpw_core::cryptography::generate_vault_data;
 /// let password = "secret password".into();
-/// let vault_data = VaultData::new(password);
+/// let vault_data = generate_vault_data(password);
 /// ```
 pub fn generate_vault_data(master_pw: SecureString) -> error::Result<(VaultData, AesKey)> {
     let master_key = util::generate_key();
