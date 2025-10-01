@@ -1,7 +1,7 @@
 use crate::cryptography;
 use crate::error::MpwError;
 use crate::event::MessageEvent;
-use crate::path_manager::{CreationError, PathManager};
+use crate::path_manager::{CreationError, PathManager, PathManagerError};
 use crate::vault::VaultError::VaultFileNotFound;
 use openssl::rand::rand_bytes;
 use secure_string::SecureString;
@@ -48,6 +48,8 @@ pub enum VaultError {
     AlreadyEncrypted(String),
     #[error("{0} is not encrypted")]
     NotEncrypted(String),
+    #[error(transparent)]
+    PathManagerError(#[from] PathManagerError),
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -528,5 +530,73 @@ impl Vault {
 
     pub fn decrypt_directory(&self, dir_path: &Path) -> Result<(), VaultErrorStack> {
         self.recursive_operation(dir_path, &|p| self.decrypt_file(p))
+    }
+
+    pub fn add_fs_entry(&mut self, path: PathBuf, name: String) -> Result<(), VaultError> {
+        self.file_list.add(name, path, false).map_err(|e| e.into())
+    }
+
+    pub fn write_file_list(&self) -> Result<(), VaultError> {
+        let serialized = self.file_list.to_json().expect("Serialization failed");
+        let mut file = std::fs::File::create(self.working_dir.join(FILE_LIST))?;
+        file.write_all(serialized.as_bytes())?;
+        Ok(())
+    }
+
+    pub fn remove_fs_entry(&mut self, name: &str) -> Result<(), VaultErrorStack> {
+        let entry = self
+            .file_list
+            .get(name)
+            .ok_or(VaultError::PathManagerError(
+                PathManagerError::EntryNotFound(name.to_string()),
+            ))?.to_owned();
+        self.file_list.remove(name);
+        if entry.is_dir() {
+            self.decrypt_directory(&entry)?;
+        } else {
+            self.decrypt_file(&entry)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn encrypt_by_name(&self, name: &str) -> Result<(), VaultErrorStack> {
+        let entry = self
+            .file_list
+            .get(name)
+            .ok_or(VaultError::PathManagerError(
+                PathManagerError::EntryNotFound(name.to_string()),
+            ))?;
+        if entry.is_dir() {
+            self.encrypt_directory(entry)?;
+        } else {
+            self.encrypt_file(entry)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn decrypt_by_name(&self, name: &str) -> Result<(), VaultErrorStack> {
+        let entry = self
+            .file_list
+            .get(name)
+            .ok_or(VaultError::PathManagerError(
+                PathManagerError::EntryNotFound(name.to_string()),
+            ))?;
+        if entry.is_dir() {
+            self.decrypt_directory(entry)?;
+        } else {
+            self.decrypt_file(entry)?;
+        }
+
+        Ok(())
+    }
+}
+
+impl Drop for Vault {
+    fn drop(&mut self) {
+        if let Err(e) = self.write_file_list() {
+            eprintln!("Error writing file list: {}", e);
+        }
     }
 }
