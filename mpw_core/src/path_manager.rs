@@ -235,6 +235,10 @@ impl PathManager {
     pub fn contains(&self, key: &str) -> bool {
         self.entries.contains_key(key)
     }
+    
+    pub fn iter(&self) -> impl Iterator<Item = (&String, &PathBuf)> {
+        self.entries.iter()
+    }
 }
 
 #[cfg(test)]

@@ -2,7 +2,6 @@ use crate::cryptography;
 use crate::error::MpwError;
 use crate::event::MessageEvent;
 use crate::path_manager::{CreationError, PathManager, PathManagerError};
-use crate::vault::VaultError::VaultFileNotFound;
 use openssl::rand::rand_bytes;
 use secure_string::SecureString;
 use std::fmt::{Display, Formatter};
@@ -212,7 +211,7 @@ impl Vault {
 
         let vlt_file = self.working_dir.join(VAULT_FILE);
         if !vlt_file.exists() {
-            return VaultFileNotFound(vlt_file.to_string_lossy().to_string()).into();
+            return VaultError::VaultFileNotFound(vlt_file.to_string_lossy().to_string()).into();
         }
 
         let vd_stream = std::fs::File::open(vlt_file)?;
@@ -615,6 +614,20 @@ impl Vault {
         }
 
         Ok(())
+    }
+
+    pub fn lock(&mut self) -> Result<(), VaultErrorStack> {
+        if self.is_locked() {
+            return Ok(());
+        }
+
+        let mut err = VaultErrorStack::new();
+        for (name, _) in self.file_list.iter() {
+            let _ = err.append_if_error(self.encrypt_by_name(name));
+        }
+
+        self.master_key = None;
+        if !err.empty() { Err(err) } else { Ok(()) }
     }
 }
 
