@@ -5,6 +5,7 @@ mod get;
 mod handler;
 mod list;
 mod remove;
+mod secure_release;
 
 use crate::command_processor as cp;
 use add::Add;
@@ -19,6 +20,7 @@ use list::List;
 use mpw_core::vault::Vault;
 use remove::Remove;
 use secure_string::SecureString;
+use crate::vault_processor::secure_release::{Release, Secure};
 
 #[derive(Debug, Subcommand)]
 enum VaultCommand {
@@ -36,6 +38,10 @@ enum VaultCommand {
     Enc(Enc),
     #[command(name = "dec")]
     Dec(Dec),
+    #[command(name = "sec")]
+    Sec(Secure),
+    #[command(name = "rel")]
+    Release(Release),
 }
 
 #[derive(Debug, Parser)]
@@ -55,6 +61,8 @@ impl Handler for VaultCommand {
             VaultCommand::ChangePw(args) => args.handle(vault, clipboard),
             VaultCommand::Enc(args) => args.handle(vault, clipboard),
             VaultCommand::Dec(args) => args.handle(vault, clipboard),
+            VaultCommand::Sec(args) => args.handle(vault, clipboard),
+            VaultCommand::Release(args) => args.handle(vault, clipboard),
         }
     }
 }
