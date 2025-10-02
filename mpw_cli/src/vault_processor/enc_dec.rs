@@ -14,7 +14,7 @@ pub struct Enc {
     #[arg(short, long, default_value = "false")]
     path: bool,
 
-    #[arg(short, long, default_value = "quiet")]
+    #[arg(short, long, default_value = "normal")]
     verbose: Verbosity,
 
     #[arg(short, long, default_value = "false")]
@@ -30,7 +30,7 @@ pub struct Dec {
     #[arg(short, long, default_value = "false")]
     path: bool,
 
-    #[arg(short, long, default_value = "quiet")]
+    #[arg(short, long, default_value = "normal")]
     verbose: Verbosity,
 
     #[arg(short, long, default_value = "false")]
