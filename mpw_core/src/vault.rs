@@ -228,24 +228,10 @@ impl Vault {
         if self.is_locked() {
             return VaultError::VaultLocked.into();
         }
-
-        let pw_path = self
-            .working_dir
-            .join(PW_PATH)
-            .join(pw_name)
-            .with_extension(PW_EXTENSION);
-        let login_path = self
-            .working_dir
-            .join(PW_PATH)
-            .join(pw_name)
-            .with_extension(LOGIN_EXTENSION);
-        if !pw_path.exists() {
-            return VaultError::PasswordNotFound(pw_name.to_string()).into();
-        }
-
+        let (pw_path, login_path) = self.get_pw_by_name(pw_name)?;
         let pw =
             cryptography::decrypt_text_from_file(&pw_path, &self.master_key.as_ref().unwrap())?;
-        let login = if login_path.exists() {
+        let login = if let Some(login_path) = login_path {
             Some(
                 cryptography::decrypt_text_from_file(
                     &login_path,
@@ -271,12 +257,8 @@ impl Vault {
             return VaultError::VaultLocked.into();
         }
 
+        let (pw_path, login_path) = self.pw_name_to_path(pw_name);
         assert_valid_name(pw_name)?;
-        let pw_path = self
-            .working_dir
-            .join(PW_PATH)
-            .join(pw_name)
-            .with_extension(PW_EXTENSION);
         if pw_path.exists() && !overwrite {
             return VaultError::AlreadyExists(pw_name.to_string()).into();
         }
@@ -291,11 +273,6 @@ impl Vault {
         if let Some(login) = login
             && login != ""
         {
-            let login_path = self
-                .working_dir
-                .join(PW_PATH)
-                .join(pw_name)
-                .with_extension(LOGIN_EXTENSION);
             cryptography::encrypt_text_to_file(
                 login.into(),
                 &login_path,
@@ -351,27 +328,43 @@ impl Vault {
         self.file_list.list_entries(show_path, search_string)
     }
 
+    fn pw_name_to_path(&self, name: &str) -> (PathBuf, PathBuf) {
+        (
+            self.working_dir
+                .join(PW_PATH)
+                .join(name)
+                .with_extension(PW_EXTENSION),
+            self.working_dir
+                .join(PW_PATH)
+                .join(name)
+                .with_extension(LOGIN_EXTENSION),
+        )
+    }
+
+    fn get_pw_by_name(&self, pw_name: &str) -> Result<(PathBuf, Option<PathBuf>), VaultError> {
+        let (pw_path, login_path) = self.pw_name_to_path(pw_name);
+        if !pw_path.exists() {
+            return VaultError::PasswordNotFound(pw_name.to_string()).into();
+        }
+
+        Ok((
+            pw_path,
+            if login_path.exists() {
+                Some(login_path)
+            } else {
+                None
+            },
+        ))
+    }
+
     pub fn delete_password(&self, pw_name: &str) -> Result<(), VaultError> {
         if self.is_locked() {
             return VaultError::VaultLocked.into();
         }
 
-        let pw_path = self
-            .working_dir
-            .join(PW_PATH)
-            .join(pw_name)
-            .with_extension(PW_EXTENSION);
-        let login_path = self
-            .working_dir
-            .join(PW_PATH)
-            .join(pw_name)
-            .with_extension(LOGIN_EXTENSION);
-        if !pw_path.exists() {
-            return VaultError::PasswordNotFound(pw_name.to_string()).into();
-        }
-
+        let (pw_path, login_path) = self.get_pw_by_name(pw_name)?;
         std::fs::remove_file(pw_path)?;
-        if login_path.exists() {
+        if let Some(login_path) = login_path {
             std::fs::remove_file(login_path)?;
         }
         Ok(())
@@ -538,6 +531,35 @@ impl Vault {
         self.file_list.add(name, path, false).map_err(|e| e.into())
     }
 
+    pub fn rename_fs_entry(&mut self, old_name: &str, new_name: String) -> Result<(), VaultError> {
+        let entry = self
+            .file_list
+            .get(old_name)
+            .ok_or(VaultError::PathManagerError(
+                PathManagerError::EntryNotFound(old_name.to_string()),
+            ))?
+            .to_owned();
+
+        self.file_list.remove(old_name);
+        self.file_list.add(new_name, entry, false)?;
+        Ok(())
+    }
+
+    pub fn rename_password(&mut self, old_name: &str, new_name: &str) -> Result<(), VaultError> {
+        let (pw_path, login_path) = self.get_pw_by_name(old_name)?;
+        if self.get_pw_by_name(new_name).is_ok() {
+            return VaultError::AlreadyExists(new_name.to_string()).into();
+        }
+
+        let (pw_new, login_new) = self.pw_name_to_path(new_name);
+        std::fs::rename(pw_path, pw_new)?;
+        if let Some(login_path) = login_path {
+            std::fs::rename(login_path, login_new)?;
+        }
+
+        Ok(())
+    }
+
     pub fn write_file_list(&self) -> Result<(), VaultError> {
         let serialized = self.file_list.to_json().expect("Serialization failed");
         let mut file = std::fs::File::create(self.working_dir.join(FILE_LIST))?;
@@ -551,7 +573,8 @@ impl Vault {
             .get(name)
             .ok_or(VaultError::PathManagerError(
                 PathManagerError::EntryNotFound(name.to_string()),
-            ))?.to_owned();
+            ))?
+            .to_owned();
         self.file_list.remove(name);
         if entry.is_dir() {
             self.decrypt_directory(&entry)?;
