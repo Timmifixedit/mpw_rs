@@ -179,8 +179,4 @@ impl cp::CommandProcessor for VaultProcessor {
             self.process_secret = None;
         }
     }
-
-    fn help(&self) {
-        todo!()
-    }
 }
