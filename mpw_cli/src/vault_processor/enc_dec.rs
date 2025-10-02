@@ -38,48 +38,51 @@ pub struct Dec {
 }
 
 trait FsHandler {
-    fn process_file(
-        &self,
-        vault: &mut Vault,
-        path: &std::path::Path,
-    ) -> Result<(), VaultErrorStack>;
-    fn process_dir(&self, vault: &mut Vault, path: &std::path::Path)
-    -> Result<(), VaultErrorStack>;
+    fn process_file(&self, vault: &mut Vault, path: &Path) -> Result<(), VaultErrorStack>;
+    fn process_dir(&self, vault: &mut Vault, path: &Path) -> Result<(), VaultErrorStack>;
+    fn process_name(&self, vault: &mut Vault, name: &str) -> Result<(), VaultErrorStack>;
     fn get_names(&self) -> &[String];
     fn is_path(&self) -> bool;
     fn get_verbosity(&self) -> Verbosity;
     fn is_recursive(&self) -> bool;
+    fn get_name(&self) -> &str;
 
     fn process(&self, vault: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup) {
-        if self.is_path() {
-            for name in self.get_names() {
+        let mut process = |name| {
+            if self.is_path() {
                 let path = Path::new(name);
                 if path.is_dir() && !self.is_recursive() {
                     println!("{name} is a directory. Use the recursive flag");
-                    continue;
+                    return Ok(());
                 }
-
-                if let Err(err) = if path.is_dir() {
+                if path.is_dir() {
                     self.process_dir(vault, path)
                 } else {
                     self.process_file(vault, path)
-                } {
-                    match self.get_verbosity() {
-                        Verbosity::Quiet => {}
-                        Verbosity::Normal => {
-                            println!("Failed to encrypt file {}", name);
-                        }
-                        Verbosity::All => {
-                            println!("Failed to encrypt file {}: {}", name, err.to_string());
-                        }
+                }
+            } else {
+                self.process_name(vault, name)
+            }
+        };
+        for name in self.get_names() {
+            if let Err(err) = process(name) {
+                match self.get_verbosity() {
+                    Verbosity::Quiet => {}
+                    Verbosity::Normal => {
+                        println!("Failed to {} item {name}", self.get_name());
+                    }
+                    Verbosity::All => {
+                        println!(
+                            "Failed to {} item {name}: {}",
+                            self.get_name(),
+                            err.to_string()
+                        );
                     }
                 }
             }
-
-            return (VaultState::Unlocked, Followup::None);
         }
 
-        todo!()
+        (VaultState::Unlocked, Followup::None)
     }
 }
 
@@ -92,6 +95,10 @@ impl FsHandler for Enc {
         vault.encrypt_directory(path)
     }
 
+    fn process_name(&self, vault: &mut Vault, name: &str) -> Result<(), VaultErrorStack> {
+        vault.encrypt_by_name(name)
+    }
+
     fn get_names(&self) -> &[String] {
         self.names.as_slice()
     }
@@ -106,6 +113,10 @@ impl FsHandler for Enc {
 
     fn is_recursive(&self) -> bool {
         self.recursive
+    }
+
+    fn get_name(&self) -> &str {
+        "encrypt"
     }
 }
 
@@ -118,6 +129,10 @@ impl FsHandler for Dec {
         vault.decrypt_directory(path)
     }
 
+    fn process_name(&self, vault: &mut Vault, name: &str) -> Result<(), VaultErrorStack> {
+        vault.decrypt_by_name(name)
+    }
+
     fn get_names(&self) -> &[String] {
         self.names.as_slice()
     }
@@ -132,6 +147,10 @@ impl FsHandler for Dec {
 
     fn is_recursive(&self) -> bool {
         self.recursive
+    }
+
+    fn get_name(&self) -> &str {
+        "decrypt"
     }
 }
 
