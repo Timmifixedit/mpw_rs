@@ -53,7 +53,7 @@ pub enum VaultError {
 
 #[derive(thiserror::Error, Debug)]
 pub struct VaultErrorStack {
-    errors: Vec<VaultError>,
+    pub errors: Vec<VaultError>,
 }
 
 impl Display for VaultErrorStack {

@@ -101,16 +101,16 @@ fn run() -> Result<(), AppError> {
                     break;
                 }
 
-                if input == "clear" {
-                    rl.clear_screen().expect("Failed to clear screen");
-                    continue;
-                }
-
                 if vp.require_raw() {
                     vp.process_raw(input);
                 } else if vp.require_secret() {
                     vp.process_secret(input.into());
                 } else {
+                    if input == "clear" {
+                        rl.clear_screen().expect("Failed to clear screen");
+                        continue;
+                    }
+
                     vp.process_command(input);
                 }
             }
