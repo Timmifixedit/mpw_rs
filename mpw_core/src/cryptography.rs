@@ -406,6 +406,11 @@ pub mod util {
 /// ```
 pub fn generate_vault_data(master_pw: SecureString) -> error::Result<(VaultData, AesKey)> {
     let master_key = util::generate_key();
+    let vault_data = generate_vault_data_with_key(master_pw, &master_key)?;
+    Ok((vault_data, master_key))
+}
+
+pub fn generate_vault_data_with_key(master_pw: SecureString, master_key: &AesKey) -> error::Result<VaultData> {
     let salt = util::generate_salt();
     let iv = util::generate_iv();
     let pw_key = generate_key_from_password(&master_pw, &salt);
@@ -415,11 +420,11 @@ pub fn generate_vault_data(master_pw: SecureString) -> error::Result<(VaultData,
         Some(&iv),
         master_key.unsecure(),
     )?;
-    Ok((VaultData {
+    Ok(VaultData {
         iv,
         cipher_master_key,
         salt,
-    }, master_key))
+    })
 }
 
 /// Generates an AES encryption key derived from a given password and salt using the PBKDF2 algorithm.
