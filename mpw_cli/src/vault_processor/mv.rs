@@ -1,5 +1,5 @@
 use crate::vault_processor::VaultState;
-use crate::handler::{Followup, Handler};
+use crate::vault_processor::handler::{Followup, Handler};
 use arboard::Clipboard;
 use clap::Args;
 use mpw_core::vault::Vault;
@@ -17,8 +17,8 @@ pub struct Move {
     file: bool,
 }
 
-impl Handler<VaultState> for Move {
-    fn handle(self, vault: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup<VaultState>) {
+impl Handler for Move {
+    fn handle(self, vault: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup) {
         if let Err(res) = if self.file {
             vault.rename_fs_entry(&self.source, self.destination)
         } else {

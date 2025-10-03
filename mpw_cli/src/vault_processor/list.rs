@@ -1,5 +1,5 @@
 use crate::vault_processor::VaultState;
-use crate::handler::{Followup, Handler};
+use crate::vault_processor::handler::{Followup, Handler};
 use arboard::Clipboard;
 use clap::Args;
 use mpw_core::vault::Vault;
@@ -17,8 +17,8 @@ pub struct List {
     pub files: bool,
 }
 
-impl Handler<VaultState> for List {
-    fn handle(self, vault: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup<VaultState>) {
+impl Handler for List {
+    fn handle(self, vault: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup) {
         let entries;
         if self.files {
             entries = vault.list_files(self.path, self.search.as_deref());

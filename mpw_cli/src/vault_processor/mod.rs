@@ -2,6 +2,7 @@ mod add;
 mod chpw;
 mod enc_dec;
 mod get;
+mod handler;
 mod list;
 mod lock;
 mod mv;
@@ -16,7 +17,7 @@ use chpw::ChangePw;
 use clap::{Parser, Subcommand};
 use enc_dec::{Dec, Enc};
 use get::Get;
-use crate::handler::{Followup, Handler, RawHandler, SecretHandler};
+use handler::{Followup, Handler, RawHandler, SecretHandler};
 use list::List;
 use lock::Lock;
 use mpw_core::vault::Vault;
@@ -58,12 +59,8 @@ struct VaultCli {
     cmd: VaultCommand,
 }
 
-impl Handler<VaultState> for VaultCommand {
-    fn handle(
-        self,
-        vault: &mut Vault,
-        clipboard: &mut Clipboard,
-    ) -> (VaultState, Followup<VaultState>) {
+impl Handler for VaultCommand {
+    fn handle(self, vault: &mut Vault, clipboard: &mut Clipboard) -> (VaultState, Followup) {
         match self {
             VaultCommand::Get(args) => args.handle(vault, clipboard),
             VaultCommand::Add(args) => args.handle(vault, clipboard),
@@ -80,12 +77,8 @@ impl Handler<VaultState> for VaultCommand {
     }
 }
 
-impl Handler<VaultState> for VaultCli {
-    fn handle(
-        self,
-        vault: &mut Vault,
-        clipboard: &mut Clipboard,
-    ) -> (VaultState, Followup<VaultState>) {
+impl Handler for VaultCli {
+    fn handle(self, vault: &mut Vault, clipboard: &mut Clipboard) -> (VaultState, Followup) {
         self.cmd.handle(vault, clipboard)
     }
 }
@@ -101,8 +94,8 @@ enum VaultState {
 pub struct VaultProcessor {
     vault: Vault,
     state: VaultState,
-    process_raw: Option<RawHandler<VaultState>>,
-    process_secret: Option<SecretHandler<VaultState>>,
+    process_raw: Option<RawHandler>,
+    process_secret: Option<SecretHandler>,
     clipboard: Clipboard,
 }
 
@@ -122,7 +115,7 @@ impl VaultProcessor {
         }
     }
 
-    fn set_followup(&mut self, followup: Followup<VaultState>) {
+    fn set_followup(&mut self, followup: Followup) {
         match followup {
             Followup::Raw(r) => {
                 self.process_raw = Some(r);

@@ -1,5 +1,5 @@
 use crate::vault_processor::VaultState;
-use crate::handler::{Followup, Handler};
+use crate::vault_processor::handler::{Followup, Handler};
 use arboard::Clipboard;
 use clap::Args;
 use mpw_core::vault::Vault;
@@ -8,8 +8,8 @@ use mpw_core::vault::Vault;
 #[command(about = "change master password", long_about = None)]
 pub struct ChangePw {}
 
-impl Handler<VaultState> for ChangePw {
-    fn handle(self, _: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup<VaultState>) {
+impl Handler for ChangePw {
+    fn handle(self, _: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup) {
         println!("Enter you new master password:");
         let followup = Followup::Secret(Box::new(move |_, pw1| {
             println!("Enter your new master password again:");
