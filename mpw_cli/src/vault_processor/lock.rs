@@ -11,7 +11,7 @@ use std::process::exit;
 #[command(about = "lock the vault", long_about = None)]
 pub struct Lock {}
 
-fn unlock(vault: &mut Vault, master_pw: SecureString) -> (VaultState, Followup) {
+pub fn unlock(vault: &mut Vault, master_pw: SecureString) -> (VaultState, Followup) {
     type V = VaultError;
     match vault.unlock(master_pw) {
         Ok(_) => (VaultState::Unlocked, Followup::None),

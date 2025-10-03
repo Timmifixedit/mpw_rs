@@ -101,16 +101,20 @@ pub struct VaultProcessor {
 
 impl VaultProcessor {
     pub fn new(vault: Vault) -> VaultProcessor {
-        let state = if vault.is_locked() {
-            VaultState::Locked
+        let state;
+        let secret_handler: Option<SecretHandler>;
+        if vault.is_locked() {
+            state = VaultState::Locked;
+            secret_handler = Some(Box::new(|vault, pw| lock::unlock(vault, pw)));
         } else {
-            VaultState::Unlocked
+            state = VaultState::Unlocked;
+            secret_handler = None;
         };
         VaultProcessor {
             vault,
             state,
             process_raw: None,
-            process_secret: None,
+            process_secret: secret_handler,
             clipboard: Clipboard::new().expect("Failed to initialize clipboard"),
         }
     }
