@@ -1,3 +1,4 @@
+use std::path::Path;
 use crate::vault_loader::LoaderState;
 use crate::vault_loader::handler::{Followup, Handler};
 use clap::Args;
@@ -11,6 +12,15 @@ pub struct Load {
     name: String,
     #[arg(short, long, default_value = "false")]
     path: bool,
+}
+
+impl Load {
+    pub fn new(path :&Path) -> Load {
+        Load {
+            name: path.to_string_lossy().to_string(),
+            path: true,
+        }
+    }
 }
 
 impl Handler for Load {

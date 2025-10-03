@@ -89,7 +89,7 @@ impl VaultLoader {
 
 impl VaultLoader {
     pub fn new() -> VaultLoader {
-        let entries = get_config_path().map_or_else(
+        let mut entries = get_config_path().map_or_else(
             || {
                 eprintln!(
                     "Could not get config path. You won't be able to save your vault locations"
@@ -103,11 +103,17 @@ impl VaultLoader {
                 })
             },
         );
+        
+        let mut state = LoaderState::Select;
+        if let Some(default_vault) = entries.get_default() {
+            let load = Load::new(default_vault);
+            (state, _) = load.handle(&mut entries);
+        }
 
         VaultLoader {
             entries,
             process_secret: None,
-            state: LoaderState::Select,
+            state
         }
     }
 }
