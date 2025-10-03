@@ -1,23 +1,22 @@
 mod add;
 mod handler;
 mod list;
-mod remove;
 mod load;
+mod remove;
 
-use std::fmt::{Display, Formatter};
 use crate::command_processor::CommandProcessor;
+use crate::config::get_config_path;
+use crate::vault_processor::VaultProcessor;
 use add::Add;
 use clap::{Parser, Subcommand};
 use handler::{Followup, Handler, SecretHandler};
 use list::List;
+use load::Load;
 use mpw_core::path_manager::PathManager;
 use remove::Remove;
 use secure_string::SecureString;
-use load::Load;
-use crate::vault_processor::VaultProcessor;
-
-const APP_NAME: &str = "mpw";
-const CONFIG_NAME: &str = "config.vlt";
+use std::fmt::{Display, Formatter};
+use std::io::Write;
 
 pub enum LoaderState {
     Select,
@@ -90,15 +89,46 @@ impl VaultLoader {
 
 impl VaultLoader {
     pub fn new() -> VaultLoader {
-        let entries = confy::load(APP_NAME, Some(CONFIG_NAME)).unwrap_or_else(|err| {
-            eprintln!("Error loading config: {}", err);
-            PathManager::default()
-        });
+        let entries = get_config_path().map_or_else(
+            || {
+                eprintln!(
+                    "Could not get config path. You won't be able to save your vault locations"
+                );
+                PathManager::default()
+            },
+            |path| {
+                PathManager::load(&path).unwrap_or_else(|e| {
+                    eprintln!("Could not load config file: {}", e);
+                    PathManager::default()
+                })
+            },
+        );
 
         VaultLoader {
             entries,
             process_secret: None,
             state: LoaderState::Select,
+        }
+    }
+}
+
+impl Drop for VaultLoader {
+    fn drop(&mut self) {
+        let serialized = self.entries.to_json().expect("Serialization failed");
+        let config = get_config_path();
+        if config.is_none() {
+            eprintln!("Could not save config file");
+            return;
+        }
+
+        let write = || -> Result<(), std::io::Error> {
+            let mut file = std::fs::File::create(config.unwrap())?;
+            file.write_all(serialized.as_bytes())?;
+            Ok(())
+        };
+
+        if let Err(e) = write() {
+            eprintln!("Could not save config file: {}", e);
         }
     }
 }

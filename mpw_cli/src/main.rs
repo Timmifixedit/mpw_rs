@@ -1,6 +1,7 @@
 mod command_processor;
 mod vault_processor;
 mod vault_loader;
+mod config;
 
 use crate::command_processor::CommandProcessor;
 use crate::vault_loader::VaultLoader;
