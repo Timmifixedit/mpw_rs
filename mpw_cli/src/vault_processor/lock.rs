@@ -1,5 +1,5 @@
 use crate::vault_processor::VaultState;
-use crate::vault_processor::handler::{Followup, Handler};
+use crate::handler::{Followup, Handler};
 use arboard::Clipboard;
 use clap::Args;
 use mpw_core::error::MpwError;
@@ -11,7 +11,7 @@ use std::process::exit;
 #[command(about = "lock the vault", long_about = None)]
 pub struct Lock {}
 
-fn unlock(vault: &mut Vault, master_pw: SecureString) -> (VaultState, Followup) {
+fn unlock(vault: &mut Vault, master_pw: SecureString) -> (VaultState, Followup<VaultState>) {
     type V = VaultError;
     match vault.unlock(master_pw) {
         Ok(_) => (VaultState::Unlocked, Followup::None),
@@ -55,8 +55,12 @@ fn unlock(vault: &mut Vault, master_pw: SecureString) -> (VaultState, Followup) 
     }
 }
 
-impl Handler for Lock {
-    fn handle(self, vault: &mut Vault, clipboard: &mut Clipboard) -> (VaultState, Followup) {
+impl Handler<VaultState> for Lock {
+    fn handle(
+        self,
+        vault: &mut Vault,
+        clipboard: &mut Clipboard,
+    ) -> (VaultState, Followup<VaultState>) {
         type V = VaultError;
         if let Err(err) = clipboard.clear() {
             println!("Error clearing clipboard: {err}");

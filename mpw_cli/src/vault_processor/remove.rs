@@ -1,5 +1,5 @@
 use crate::vault_processor::VaultState;
-use crate::vault_processor::handler::{Followup, Handler};
+use crate::handler::{Followup, Handler};
 use arboard::Clipboard;
 use clap::Args;
 use mpw_core::vault::Vault;
@@ -17,8 +17,8 @@ pub struct Remove {
     pub yes: bool,
 }
 
-impl Handler for Remove {
-    fn handle(self, vault: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup) {
+impl Handler<VaultState> for Remove {
+    fn handle(self, vault: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup<VaultState>) {
         let remove = move |vlt: &mut Vault| {
             for name in self.names {
                 if self.files {

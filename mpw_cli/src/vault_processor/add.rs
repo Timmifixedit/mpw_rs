@@ -1,5 +1,5 @@
 use crate::vault_processor::VaultState;
-use crate::vault_processor::handler::{Followup, Handler};
+use crate::handler::{Followup, Handler};
 use arboard::Clipboard;
 use clap::Args;
 use mpw_core::vault;
@@ -25,8 +25,8 @@ pub struct Add {
     pub login: Option<String>,
 }
 
-impl Handler for Add {
-    fn handle(self, vault: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup) {
+impl Handler<VaultState> for Add {
+    fn handle(self, vault: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup<VaultState>) {
         let result = (|| {
             let exists = vault.list_passwords(None)?.contains(&self.name);
             if exists && !self.overwrite {

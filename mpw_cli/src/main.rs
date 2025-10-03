@@ -1,5 +1,6 @@
 mod command_processor;
 mod vault_processor;
+mod handler;
 
 use crate::command_processor::CommandProcessor;
 use mpw_core::vault::VaultError;

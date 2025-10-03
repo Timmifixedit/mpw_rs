@@ -1,5 +1,5 @@
 use crate::vault_processor::VaultState;
-use crate::vault_processor::handler::{Followup, Handler};
+use crate::handler::{Followup, Handler};
 use arboard::Clipboard;
 use clap::Args;
 use mpw_core::vault::Vault;
@@ -14,8 +14,12 @@ pub struct Get {
     pub show: bool,
 }
 
-impl Handler for Get {
-    fn handle(self, vault: &mut Vault, clipboard: &mut Clipboard) -> (VaultState, Followup) {
+impl Handler<VaultState> for Get {
+    fn handle(
+        self,
+        vault: &mut Vault,
+        clipboard: &mut Clipboard,
+    ) -> (VaultState, Followup<VaultState>) {
         vault.retrieve_password(&self.name).map_or_else(
             |e| println!("{}", e.to_string()),
             |(pw, login)| {

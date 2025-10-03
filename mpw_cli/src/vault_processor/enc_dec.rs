@@ -1,5 +1,5 @@
 use crate::vault_processor::VaultState;
-use crate::vault_processor::handler::{Followup, Handler, Verbosity};
+use crate::handler::{Followup, Handler, Verbosity};
 use arboard::Clipboard;
 use clap::Args;
 use mpw_core::vault::{Vault, VaultErrorStack};
@@ -47,7 +47,7 @@ trait FsHandler {
     fn is_recursive(&self) -> bool;
     fn get_name(&self) -> &str;
 
-    fn process(&self, vault: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup) {
+    fn process(&self, vault: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup<VaultState>) {
         let mut process = |name| {
             if self.is_path() {
                 let path = Path::new(name);
@@ -154,14 +154,22 @@ impl FsHandler for Dec {
     }
 }
 
-impl Handler for Enc {
-    fn handle(self, vault: &mut Vault, clipboard: &mut Clipboard) -> (VaultState, Followup) {
+impl Handler<VaultState> for Enc {
+    fn handle(
+        self,
+        vault: &mut Vault,
+        clipboard: &mut Clipboard,
+    ) -> (VaultState, Followup<VaultState>) {
         self.process(vault, clipboard)
     }
 }
 
-impl Handler for Dec {
-    fn handle(self, vault: &mut Vault, clipboard: &mut Clipboard) -> (VaultState, Followup) {
+impl Handler<VaultState> for Dec {
+    fn handle(
+        self,
+        vault: &mut Vault,
+        clipboard: &mut Clipboard,
+    ) -> (VaultState, Followup<VaultState>) {
         self.process(vault, clipboard)
     }
 }

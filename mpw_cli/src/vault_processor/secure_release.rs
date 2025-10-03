@@ -1,8 +1,8 @@
 use crate::vault_processor::VaultState;
-use crate::vault_processor::handler::{Followup, Handler, Verbosity};
+use crate::handler::{Followup, Handler, Verbosity};
 use arboard::Clipboard;
 use clap::Args;
-use mpw_core::vault::{Vault, VaultErrorStack};
+use mpw_core::vault::Vault;
 use std::path::PathBuf;
 
 #[derive(Debug, Args)]
@@ -23,8 +23,8 @@ pub struct Release {
     verbose: Verbosity,
 }
 
-impl Handler for Secure {
-    fn handle(self, vault: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup) {
+impl Handler<VaultState> for Secure {
+    fn handle(self, vault: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup<VaultState>) {
         vault.add_fs_entry(self.path, self.name).map_or_else(
             |e| {
                 println!("{}", e);
@@ -35,8 +35,8 @@ impl Handler for Secure {
     }
 }
 
-impl Handler for Release {
-    fn handle(self, vault: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup) {
+impl Handler<VaultState> for Release {
+    fn handle(self, vault: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup<VaultState>) {
         for name in self.names {
             if let Err(err) = vault.remove_fs_entry(&name) {
                 match &self.verbose {
