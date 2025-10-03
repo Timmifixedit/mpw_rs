@@ -1,12 +1,12 @@
 mod command_processor;
 mod vault_processor;
+mod vault_loader;
 
 use crate::command_processor::CommandProcessor;
+use crate::vault_loader::VaultLoader;
 use mpw_core::vault::VaultError;
 use rustyline::DefaultEditor;
 use rustyline::error::ReadlineError;
-use std::env;
-use std::path::Path;
 use std::process::exit;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -27,15 +27,6 @@ impl From<String> for AppError {
 }
 
 fn run() -> Result<(), AppError> {
-    let args: Vec<String> = env::args().collect();
-    if args.len() < 2 {
-        println!("Please specify the path to a vault");
-        exit(1);
-    }
-
-    let vault_path = Path::new(&args[1]);
-    let mut vault = mpw_core::vault::Vault::load(vault_path.into())?;
-
     let mut rl = DefaultEditor::new().expect("Failed to create readline editor");
 
     // Set up Ctrl-C handler
@@ -47,31 +38,21 @@ fn run() -> Result<(), AppError> {
     })
     .expect("Error setting Ctrl-C handler");
 
-    println!("Enter master password:");
-    let master_pw = rpassword::read_password().expect("Failed to read master password");
-
-    if interrupted.load(Ordering::SeqCst) {
-        println!("^C");
-        return Ok(());
-    }
-
-    vault.unlock(master_pw.trim().into())?;
-
-    let mut vp = vault_processor::VaultProcessor::new(vault);
-
+    let mut vl = VaultLoader::new();
     loop {
+
         // Reset the interrupted flag at the start of each loop
         interrupted.store(false, Ordering::SeqCst);
 
-        let prompt = if vp.require_secret() {
+        let prompt = if vl.require_secret() {
             "Password: "
-        } else if vp.require_raw() {
+        } else if vl.require_raw() {
             "... "
         } else {
             "> "
         };
 
-        let readline = if vp.require_secret() {
+        let readline = if vl.require_secret() {
             // Use rpassword for secret input (masked)
             print!("{}", prompt);
             use std::io::Write;
@@ -92,7 +73,7 @@ fn run() -> Result<(), AppError> {
 
         match readline {
             Ok(line) => {
-                if !vp.require_secret() {
+                if !vl.require_secret() {
                     rl.add_history_entry(&line)
                         .expect("Failed to add history entry");
                 }
@@ -101,22 +82,22 @@ fn run() -> Result<(), AppError> {
                     break;
                 }
 
-                if vp.require_raw() {
-                    vp.process_raw(input);
-                } else if vp.require_secret() {
-                    vp.process_secret(input.into());
+                if vl.require_raw() {
+                    vl.process_raw(input);
+                } else if vl.require_secret() {
+                    vl.process_secret(input.into());
                 } else {
                     if input == "clear" {
                         rl.clear_screen().expect("Failed to clear screen");
                         continue;
                     }
 
-                    vp.process_command(input);
+                    vl.process_command(input);
                 }
             }
             Err(ReadlineError::Interrupted) => {
                 // Ctrl+C was pressed
-                vp.handle_cancel();
+                vl.handle_cancel();
                 println!("^C");
             }
             Err(ReadlineError::Eof) => {

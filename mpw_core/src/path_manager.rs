@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -36,9 +36,32 @@ pub enum PathManagerError {
 }
 
 /// Holds named file system entries.
+#[derive(Default)]
 pub struct PathManager {
     entries: HashMap<String, PathBuf>,
     default: Option<String>,
+}
+
+impl serde::Serialize for PathManager {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let json = self
+            .to_json()
+            .map_err(|e| serde::ser::Error::custom(e.to_string()))?;
+        serializer.serialize_str(&json)
+    }
+}
+
+impl<'a> serde::Deserialize<'a> for PathManager {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'a>,
+    {
+        let json = String::deserialize(deserializer)?;
+        PathManager::from_json(&json).map_err(|e| serde::de::Error::custom(e.to_string()))
+    }
 }
 
 impl PathManager {
@@ -235,7 +258,7 @@ impl PathManager {
     pub fn contains(&self, key: &str) -> bool {
         self.entries.contains_key(key)
     }
-    
+
     pub fn iter(&self) -> impl Iterator<Item = (&String, &PathBuf)> {
         self.entries.iter()
     }
@@ -354,7 +377,10 @@ mod tests {
         let file = NamedTempFile::new().unwrap();
         let mut pm = PathManager::new(generate_data());
         assert_eq!(pm.entries.len(), 4);
-        assert!(pm.add("test4".to_string(), file.path().to_owned(), true).is_ok());
+        assert!(
+            pm.add("test4".to_string(), file.path().to_owned(), true)
+                .is_ok()
+        );
         assert_eq!(pm.entries.len(), 5);
         assert_eq!(pm.get("test4").unwrap(), file.path());
         assert_eq!(pm.get_default().unwrap(), file.path());
@@ -364,7 +390,10 @@ mod tests {
                 e => assert!(false, "wrong error {e}"),
             }
         } else {
-            assert!(false, "should not be able to add an entry with the same name");
+            assert!(
+                false,
+                "should not be able to add an entry with the same name"
+            );
         }
 
         if let Err(err) = pm.add("test5".to_string(), PathBuf::from("bla"), false) {
@@ -373,11 +402,17 @@ mod tests {
                 e => assert!(false, "wrong error {e}"),
             }
         } else {
-            assert!(false, "should not be able to add an entry with non existing path");
+            assert!(
+                false,
+                "should not be able to add an entry with non existing path"
+            );
         }
 
         let file = NamedTempFile::with_prefix("blabla").unwrap();
-        assert!(pm.add("test5".to_string(), file.path().to_owned(), true).is_ok());
+        assert!(
+            pm.add("test5".to_string(), file.path().to_owned(), true)
+                .is_ok()
+        );
         assert_eq!(pm.get("test5").unwrap(), file.path());
         assert_eq!(pm.get_default().unwrap(), file.path());
     }

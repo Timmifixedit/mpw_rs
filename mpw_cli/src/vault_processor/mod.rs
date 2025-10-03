@@ -130,6 +130,10 @@ impl VaultProcessor {
             _ => {}
         }
     }
+
+    pub fn is_locked(&self) -> bool {
+        self.state == VaultState::Locked
+    }
 }
 
 impl cp::CommandProcessor for VaultProcessor {
