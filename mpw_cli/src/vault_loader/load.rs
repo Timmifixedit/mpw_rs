@@ -1,10 +1,10 @@
-use std::path::Path;
 use crate::vault_loader::LoaderState;
 use crate::vault_loader::handler::{Followup, Handler};
+use crate::vault_processor::VaultProcessor;
 use clap::Args;
 use mpw_core::path_manager::PathManager;
-use mpw_core::vault::Vault;
-use crate::vault_processor::VaultProcessor;
+use mpw_core::vault::{Vault, VaultError};
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Args)]
 pub struct Load {
@@ -15,7 +15,7 @@ pub struct Load {
 }
 
 impl Load {
-    pub fn new(path :&Path) -> Load {
+    pub fn new(path: &Path) -> Load {
         Load {
             name: path.to_string_lossy().to_string(),
             path: true,
@@ -23,11 +23,56 @@ impl Load {
     }
 }
 
+fn create_new_vault(path: PathBuf) -> (LoaderState, Followup) {
+    let try_unlock = |mut vault: Vault, pw| -> (LoaderState, Followup) {
+        vault.unlock(pw).map_or_else(
+            |e| {
+                eprintln!("{e}");
+                (LoaderState::Select, Followup::None)
+            },
+            |_| {
+                (
+                    LoaderState::Loaded(VaultProcessor::new(vault)),
+                    Followup::None,
+                )
+            },
+        )
+    };
+
+    let create = move |pw1, pw2| -> (LoaderState, Followup) {
+        if pw1 != pw2 {
+            println!("Passwords do not match");
+            return (LoaderState::Select, Followup::None);
+        }
+
+        Vault::new(path, pw1).map_or_else(
+            |e| {
+                println!("{e}");
+                (LoaderState::Select, Followup::None)
+            },
+            |vault| try_unlock(vault, pw2),
+        )
+    };
+
+    let ask_pw = |pw1| -> (LoaderState, Followup) {
+        println!("Please enter your master password again");
+        (
+            LoaderState::Secret,
+            Followup::Secret(Box::new(move |pw2| create(pw1, pw2))),
+        )
+    };
+
+    println!("Creating a new vault. Please enter your master password");
+    (
+        LoaderState::Secret,
+        Followup::Secret(Box::new(move |pw1| ask_pw(pw1))),
+    )
+}
+
 impl Handler for Load {
     fn handle(self, entries: &mut PathManager) -> (LoaderState, Followup) {
-        if self.path {
-            let path = self.name.into();
-            Vault::load(path)
+        let path = if self.path {
+            Path::new(&self.name)
         } else {
             let path = match entries.get(&self.name) {
                 Some(p) => p,
@@ -36,14 +81,24 @@ impl Handler for Load {
                     return (LoaderState::Select, Followup::None);
                 }
             };
-            Vault::load(path.to_path_buf())
-        }
-        .map_or_else(
+            path
+        };
+
+        Vault::load(path.to_owned()).map_or_else(
             |e| {
-                println!("Error loading vault: {}", e);
-                (LoaderState::Select, Followup::None)
+                if let VaultError::VaultFileNotFound(_) = &e {
+                    create_new_vault(path.to_owned())
+                } else {
+                    println!("Error loading vault: {}", e);
+                    (LoaderState::Select, Followup::None)
+                }
             },
-            |vault| (LoaderState::Loaded(VaultProcessor::new(vault)), Followup::None),
+            |vault| {
+                (
+                    LoaderState::Loaded(VaultProcessor::new(vault)),
+                    Followup::None,
+                )
+            },
         )
     }
 }
