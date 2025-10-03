@@ -157,6 +157,17 @@ impl Vault {
             return VaultError::VaultDirNotFound(working_dir.to_string_lossy().to_string()).into();
         }
 
+        if !working_dir.join(VAULT_FILE).exists() {
+            return VaultError::VaultFileNotFound(
+                working_dir.join(VAULT_FILE).to_string_lossy().to_string(),
+            )
+            .into();
+        }
+
+        if !working_dir.join(PW_PATH).is_dir() {
+            std::fs::create_dir_all(working_dir.join(PW_PATH))?;
+        }
+
         let file_list = working_dir.join(FILE_LIST);
         let files = match PathManager::load(&file_list) {
             Ok(f) => f,
