@@ -204,9 +204,16 @@ impl CommandProcessor for VaultLoader {
     }
 
     fn handle_cancel(&mut self) {
-        if let LoaderState::Loaded(vp) = &mut self.state {
-            vp.handle_cancel();
-            if vp.is_locked() {
+        match &mut self.state {
+            LoaderState::Select => {}
+            LoaderState::Loaded(vp) => {
+                vp.handle_cancel();
+                if vp.is_locked() {
+                    self.state = LoaderState::Select;
+                    self.process_secret = None;
+                }
+            }
+            LoaderState::Secret => {
                 self.state = LoaderState::Select;
                 self.process_secret = None;
             }
