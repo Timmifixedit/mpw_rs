@@ -81,6 +81,7 @@ fn run() -> Result<(), AppError> {
                 }
                 let input = line.trim();
                 if input == "exit" {
+                    vl.handle_shutdown();
                     break;
                 }
 

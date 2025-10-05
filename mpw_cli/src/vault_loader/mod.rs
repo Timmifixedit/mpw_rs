@@ -225,4 +225,12 @@ impl CommandProcessor for VaultLoader {
             }
         }
     }
+
+    fn handle_shutdown(&mut self) {
+        if let LoaderState::Loaded(vp) = &mut self.state {
+            vp.handle_shutdown();
+        }
+
+        self.state = LoaderState::Select;
+    }
 }

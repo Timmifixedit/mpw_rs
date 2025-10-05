@@ -192,4 +192,10 @@ impl cp::CommandProcessor for VaultProcessor {
             self.process_secret = None;
         }
     }
+
+    fn handle_shutdown(&mut self) {
+        let (state, followup) = Lock {}.handle(&mut self.vault, &mut self.clipboard);
+        self.state = state;
+        self.set_followup(followup);
+    }
 }

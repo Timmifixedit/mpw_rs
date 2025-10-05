@@ -7,4 +7,5 @@ pub trait CommandProcessor {
     fn require_secret(&self) -> bool;
     fn require_raw(&self) -> bool;
     fn handle_cancel(&mut self);
+    fn handle_shutdown(&mut self);
 }
