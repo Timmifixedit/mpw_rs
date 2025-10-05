@@ -3,15 +3,7 @@ use crate::vault_loader::handler::{Followup, Handler};
 use clap::Args;
 use mpw_core::path_manager::PathManager;
 use std::path::PathBuf;
-
-macro_rules! print_if_error {
-    ($expr:expr) => {
-        let run = || -> Result<_, _> { $expr };
-        if let Err(e) = run() {
-            println!("{e}");
-        }
-    };
-}
+use crate::print_if_error;
 
 #[derive(Debug, Args)]
 pub struct Add {
