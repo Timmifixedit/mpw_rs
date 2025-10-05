@@ -1,10 +1,10 @@
+use crate::print_if_error;
 use crate::vault_processor::VaultState;
 use crate::vault_processor::handler::{Followup, Handler, Verbosity};
 use arboard::Clipboard;
 use clap::Args;
 use mpw_core::vault::Vault;
 use std::path::PathBuf;
-use crate::print_if_error;
 
 #[derive(Debug, Args)]
 #[command(about = "permanently secure a file system entry", long_about = None)]
@@ -16,7 +16,11 @@ pub struct Secure {
 }
 
 #[derive(Debug, Args)]
-#[command(about = "release secured file system entries from vault", long_about = None)]
+#[command(
+    about = "release secured file system entries from vault",
+    long_about = "Release secured file system entries from vault. \
+    Files are decrypted but not deleted."
+)]
 pub struct Release {
     #[arg(required = true)]
     names: Vec<String>,

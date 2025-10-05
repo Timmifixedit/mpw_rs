@@ -5,7 +5,7 @@ use clap::Args;
 use mpw_core::vault::Vault;
 
 #[derive(Debug, Args)]
-#[command(about = "remove passwords / files", long_about = None)]
+#[command(about = "remove passwords", long_about = None)]
 pub struct Remove {
     #[arg(required = true)]
     pub names: Vec<String>,

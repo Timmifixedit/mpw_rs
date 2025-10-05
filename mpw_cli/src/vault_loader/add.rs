@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use crate::print_if_error;
 
 #[derive(Debug, Args)]
+#[command(about = "add a new or existing vault", long_about = None)]
 pub struct Add {
     #[arg(required = true)]
     name: String,

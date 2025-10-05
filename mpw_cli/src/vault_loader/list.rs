@@ -4,6 +4,7 @@ use crate::vault_loader::handler::{Followup, Handler};
 use crate::vault_loader::LoaderState;
 
 #[derive(Debug, Args)]
+#[command(about = "list known vaults", long_about = None)]
 pub struct List {
     #[arg(required = false, default_value = None)]
     search: Option<String>,

@@ -4,6 +4,11 @@ use clap::Args;
 use mpw_core::path_manager::PathManager;
 
 #[derive(Debug, Args)]
+#[command(
+    about = "remove a vault from the list",
+    long_about = "Remove a vault from the list. \
+    The vault is only removed from the list. The actual location is not deleted."
+)]
 pub struct Remove {
     #[clap(required = true)]
     name: Vec<String>,

@@ -5,6 +5,7 @@ use clap::Args;
 use mpw_core::path_manager::{PathManager, PathManagerError};
 
 #[derive(Debug, Args)]
+#[command(about = "move (rename) a saved vault", long_about = None)]
 pub struct Move {
     #[arg(required = true)]
     source: String,

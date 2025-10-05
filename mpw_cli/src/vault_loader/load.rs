@@ -7,6 +7,7 @@ use mpw_core::vault::{Vault, VaultError};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Args)]
+#[command(about = "load a vault from the list or from a path", long_about = None)]
 pub struct Load {
     #[arg(required = true)]
     name: String,
