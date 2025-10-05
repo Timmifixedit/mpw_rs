@@ -188,6 +188,15 @@ impl PathManager {
         self.entries.get(key).map(|v| v.as_path())
     }
 
+    /// Returns true if the entry is the default entry.
+    /// # Parameters
+    /// * `key`: name of the entry
+    /// # Returns
+    /// true if entry is default entry, false otherwise.
+    pub fn is_default(&self, key: &str) -> bool {
+        self.default.as_ref().is_some_and(|d| d == key)
+    }
+
     /// Sets the default entry.
     /// # Parameters
     /// * `key`: name of the entry

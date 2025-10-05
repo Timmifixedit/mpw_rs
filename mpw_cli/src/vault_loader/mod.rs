@@ -2,6 +2,7 @@ mod add;
 mod handler;
 mod list;
 mod load;
+mod mv;
 mod remove;
 
 use crate::command_processor::CommandProcessor;
@@ -13,6 +14,7 @@ use handler::{Followup, Handler, SecretHandler};
 use list::List;
 use load::Load;
 use mpw_core::path_manager::PathManager;
+use mv::Move;
 use remove::Remove;
 use secure_string::SecureString;
 use std::fmt::{Display, Formatter};
@@ -44,6 +46,8 @@ enum LoaderCommand {
     List(List),
     #[command(name = "load")]
     Load(Load),
+    #[command(name = "mv")]
+    Move(Move),
 }
 
 #[derive(Debug, Parser)]
@@ -60,6 +64,7 @@ impl Handler for LoaderCommand {
             LoaderCommand::Remove(args) => args.handle(entries),
             LoaderCommand::List(args) => args.handle(entries),
             LoaderCommand::Load(args) => args.handle(entries),
+            LoaderCommand::Move(args) => args.handle(entries),
         }
     }
 }
@@ -103,7 +108,7 @@ impl VaultLoader {
                 })
             },
         );
-        
+
         let mut state = LoaderState::Select;
         let mut secret_handler = Followup::None;
         if let Some(default_vault) = entries.get_default() {
