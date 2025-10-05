@@ -19,6 +19,7 @@ use remove::Remove;
 use secure_string::SecureString;
 use std::fmt::{Display, Formatter};
 use std::io::Write;
+use crate::print_if_error;
 
 pub enum LoaderState {
     Select,
@@ -136,15 +137,11 @@ impl Drop for VaultLoader {
             return;
         }
 
-        let write = || -> Result<(), std::io::Error> {
+        print_if_error!({
             let mut file = std::fs::File::create(config.unwrap())?;
             file.write_all(serialized.as_bytes())?;
-            Ok(())
-        };
-
-        if let Err(e) = write() {
-            eprintln!("Could not save config file: {}", e);
-        }
+            Ok::<_, std::io::Error>(())
+        }, "Could not save config file: ");
     }
 }
 

@@ -4,6 +4,7 @@ use arboard::Clipboard;
 use clap::Args;
 use mpw_core::vault::{Vault, VaultErrorStack};
 use std::path::PathBuf;
+use crate::print_if_error;
 
 #[derive(Debug, Args)]
 #[command(about = "permanently secure a file system entry", long_about = None)]
@@ -25,12 +26,7 @@ pub struct Release {
 
 impl Handler for Secure {
     fn handle(self, vault: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup) {
-        vault.add_fs_entry(self.path, self.name).map_or_else(
-            |e| {
-                println!("{}", e);
-            },
-            |_| (),
-        );
+        print_if_error!(vault.add_fs_entry(self.path, self.name));
         (VaultState::Unlocked, Followup::None)
     }
 }

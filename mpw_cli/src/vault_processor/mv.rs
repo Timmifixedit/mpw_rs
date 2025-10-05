@@ -1,3 +1,4 @@
+use crate::print_if_error;
 use crate::vault_processor::VaultState;
 use crate::vault_processor::handler::{Followup, Handler};
 use arboard::Clipboard;
@@ -19,13 +20,11 @@ pub struct Move {
 
 impl Handler for Move {
     fn handle(self, vault: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup) {
-        if let Err(res) = if self.file {
+        print_if_error!(if self.file {
             vault.rename_fs_entry(&self.source, self.destination)
         } else {
             vault.rename_password(&self.source, &self.destination)
-        } {
-            println!("{}", res);
-        }
+        });
 
         (VaultState::Unlocked, Followup::None)
     }

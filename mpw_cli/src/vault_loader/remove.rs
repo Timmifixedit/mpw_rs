@@ -1,7 +1,7 @@
+use crate::vault_loader::LoaderState;
+use crate::vault_loader::handler::{Followup, Handler};
 use clap::Args;
 use mpw_core::path_manager::PathManager;
-use crate::vault_loader::handler::{Followup, Handler};
-use crate::vault_loader::LoaderState;
 
 #[derive(Debug, Args)]
 pub struct Remove {
