@@ -163,7 +163,8 @@ impl CommandProcessor for VaultLoader {
         let parsed = match LoaderCli::try_parse_from(args) {
             Ok(cli) => cli,
             Err(e) => {
-                return println!("Error parsing command: {}", e);
+                e.print().expect("Failed to print error");
+                return;
             }
         };
 

@@ -7,7 +7,7 @@ edition = "2024"
 mpw_core = { path = "../mpw_core" }
 secure-string = "0.3.0"
 thiserror = "2.0.16"
-clap = { version = "4.5.48", features = ["derive"] }
+clap = { version = "4.5.48", features = ["derive", "color"] }
 arboard = "3.6.1"
 rustyline = "17.0.1"
 rpassword = "7.4.0"

@@ -146,7 +146,8 @@ impl cp::CommandProcessor for VaultProcessor {
         let parsed = match VaultCli::try_parse_from(args) {
             Ok(cli) => cli,
             Err(e) => {
-                return println!("Error parsing command: {}", e);
+                e.print().expect("Failed to print error");
+                return;
             }
         };
 
