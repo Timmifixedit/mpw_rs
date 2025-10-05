@@ -20,7 +20,7 @@ pub struct Secure {
 pub struct Release {
     #[arg(required = true)]
     names: Vec<String>,
-    #[arg(short, long, default_value = "quiet")]
+    #[arg(short, long, default_value = "normal")]
     verbose: Verbosity,
 }
 

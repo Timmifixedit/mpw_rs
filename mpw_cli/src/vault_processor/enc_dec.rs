@@ -2,7 +2,7 @@ use crate::vault_processor::VaultState;
 use crate::vault_processor::handler::{Followup, Handler, Verbosity};
 use arboard::Clipboard;
 use clap::Args;
-use mpw_core::vault::{Vault, VaultErrorStack};
+use mpw_core::vault::{Vault, VaultError, VaultErrorStack};
 use std::path::Path;
 
 #[derive(Debug, Args)]
@@ -37,6 +37,50 @@ pub struct Dec {
     recursive: bool,
 }
 
+pub fn print_error(err: VaultErrorStack, verbose: Verbosity) {
+    if verbose == Verbosity::Quiet {
+        return;
+    }
+
+    for e in err.errors {
+        match e {
+            VaultError::VaultLocked
+            | VaultError::InvalidPwName(_)
+            | VaultError::InvalidParameter(_)
+            | VaultError::PasswordNotFound(_) => {
+                panic!("unexpected error {e:?}")
+            }
+
+            VaultError::VaultDirNotFound(_) | VaultError::VaultFileNotFound(_) => {
+                eprintln!("Critical error: {e}")
+            }
+
+            VaultError::PathManagerError(_) => println!("{e}"),
+
+            VaultError::NotEncrypted(_) | VaultError::AlreadyEncrypted(_) => {
+                if verbose == Verbosity::All {
+                    println!("{e}");
+                }
+            }
+
+            VaultError::IoError(_)
+            | VaultError::CoreError(_)
+            | VaultError::ProtectedItem(_)
+            | VaultError::AlreadyExists(_) => {
+                if verbose >= Verbosity::Normal {
+                    println!("{e}");
+                }
+            }
+
+            VaultError::VaultItem { .. } => {
+                if verbose >= Verbosity::Normal {
+                    println!("{e}");
+                }
+            }
+        }
+    }
+}
+
 trait FsHandler {
     fn process_file(&self, vault: &mut Vault, path: &Path) -> Result<(), VaultErrorStack>;
     fn process_dir(&self, vault: &mut Vault, path: &Path) -> Result<(), VaultErrorStack>;
@@ -68,19 +112,7 @@ trait FsHandler {
         println!("File {}ion in progress. Please wait...", self.get_name());
         for name in self.get_names() {
             if let Err(err) = process(name) {
-                match self.get_verbosity() {
-                    Verbosity::Quiet => {}
-                    Verbosity::Normal => {
-                        println!("Failed to {} item {name}", self.get_name());
-                    }
-                    Verbosity::All => {
-                        println!(
-                            "Failed to {} item {name}: {}",
-                            self.get_name(),
-                            err.to_string()
-                        );
-                    }
-                }
+                print_error(err, self.get_verbosity());
             }
         }
 
