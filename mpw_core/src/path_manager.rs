@@ -200,6 +200,25 @@ impl PathManager {
         Ok(())
     }
 
+    /// Updates the default entry.
+    /// # Parameters
+    /// * `key`: name of the entry
+    /// * `default`: if true, the entry is set as default, otherwise the default is cleared.
+    /// # Errors
+    /// * `EntryManagerError`: if the entry does not exist
+    pub fn update_default(&mut self, key: &str, default: bool) -> Result<(), PathManagerError> {
+        if !self.contains(key) {
+            return Err(PathManagerError::EntryNotFound(key.to_string()));
+        }
+        if default {
+            self.default = Some(key.to_string());
+        } else if self.default.as_ref().is_some_and(|d| d == key) {
+            self.clear_default();
+        }
+
+        Ok(())
+    }
+
     /// Clears the default entry.
     pub fn clear_default(&mut self) {
         self.default = None;
@@ -235,6 +254,26 @@ impl PathManager {
             self.default = Some(key);
         }
 
+        Ok(())
+    }
+
+    /// Updates an entry.
+    /// # Parameters
+    /// * `key`: name of the entry
+    /// * `value`: path to the entry
+    /// * `default`: if true, the entry is set as default
+    /// # Errors
+    /// * `EntryManagerError`: if the entry does not exist or the path does not exist
+    pub fn update(&mut self, key: &str, value: PathBuf) -> Result<(), PathManagerError> {
+        let entry = self
+            .entries
+            .get_mut(key)
+            .ok_or(PathManagerError::EntryNotFound(key.to_string()))?;
+        if !value.exists() {
+            return Err(PathManagerError::InvalidPath);
+        }
+
+        *entry = value;
         Ok(())
     }
 
@@ -357,6 +396,19 @@ mod tests {
     }
 
     #[test]
+    fn test_update_default() {
+        let mut pm = PathManager::new(generate_data());
+        assert!(pm.update_default("bla", true).is_err());
+        assert_eq!(pm.default.as_ref().unwrap(), "test1");
+        pm.update_default("test2", true).unwrap();
+        assert_eq!(pm.get_default().unwrap(), Path::new("value test2"));
+        pm.update_default("test2", false).unwrap();
+        assert!(pm.get_default().is_none());
+        pm.update_default("test1", false).unwrap();
+        assert!(pm.get_default().is_none());
+    }
+
+    #[test]
     fn test_remove() {
         let mut pm = PathManager::new(generate_data());
         assert_eq!(pm.entries.len(), 4);
@@ -415,5 +467,15 @@ mod tests {
         );
         assert_eq!(pm.get("test5").unwrap(), file.path());
         assert_eq!(pm.get_default().unwrap(), file.path());
+    }
+
+    #[test]
+    fn test_update() {
+        let file = NamedTempFile::new().unwrap();
+        let mut pm = PathManager::new(generate_data());
+        pm.update("test0", file.path().to_owned()).unwrap();
+        assert_eq!(pm.get("test0").unwrap(), file.path());
+        assert!(pm.update("test0", PathBuf::from("bla")).is_err());
+        assert!(pm.update("bla", file.path().to_owned()).is_err());
     }
 }
