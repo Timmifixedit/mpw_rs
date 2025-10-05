@@ -7,6 +7,7 @@ mod remove;
 
 use crate::command_processor::CommandProcessor;
 use crate::config::get_config_path;
+use crate::print_if_error;
 use crate::vault_processor::VaultProcessor;
 use add::Add;
 use clap::{Parser, Subcommand};
@@ -19,7 +20,6 @@ use remove::Remove;
 use secure_string::SecureString;
 use std::fmt::{Display, Formatter};
 use std::io::Write;
-use crate::print_if_error;
 
 pub enum LoaderState {
     Select,
@@ -137,11 +137,14 @@ impl Drop for VaultLoader {
             return;
         }
 
-        print_if_error!({
-            let mut file = std::fs::File::create(config.unwrap())?;
-            file.write_all(serialized.as_bytes())?;
-            Ok::<_, std::io::Error>(())
-        }, "Could not save config file: ");
+        print_if_error!(
+            {
+                let mut file = std::fs::File::create(config.unwrap())?;
+                file.write_all(serialized.as_bytes())?;
+                Ok::<_, std::io::Error>(())
+            },
+            "Could not save config file: "
+        );
     }
 }
 

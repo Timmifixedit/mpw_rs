@@ -14,7 +14,10 @@ pub struct Lock {}
 pub fn unlock(vault: &mut Vault, master_pw: SecureString) -> (VaultState, Followup) {
     type V = VaultError;
     match vault.unlock(master_pw) {
-        Ok(_) => (VaultState::Unlocked, Followup::None),
+        Ok(_) => {
+            println!("Successfully unlocked vault");
+            (VaultState::Unlocked, Followup::None)
+        }
         Err(err) => match err {
             V::VaultDirNotFound(e) | V::VaultFileNotFound(e) => {
                 eprintln!("Fatal error: {e}");
@@ -62,6 +65,7 @@ impl Handler for Lock {
             println!("Error clearing clipboard: {err}");
         }
 
+        println!("File encryption in progress. Please wait...");
         if let Err(err) = vault.lock() {
             for e in err.errors {
                 match e {

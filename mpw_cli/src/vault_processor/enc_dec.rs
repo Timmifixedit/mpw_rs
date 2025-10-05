@@ -64,6 +64,8 @@ trait FsHandler {
                 self.process_name(vault, name)
             }
         };
+
+        println!("File {}ion in progress. Please wait...", self.get_name());
         for name in self.get_names() {
             if let Err(err) = process(name) {
                 match self.get_verbosity() {

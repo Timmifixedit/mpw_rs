@@ -31,8 +31,10 @@ fn create_new_vault(path: PathBuf) -> (LoaderState, Followup) {
                 (LoaderState::Select, Followup::None)
             },
             |_| {
+                let vp = VaultProcessor::new(vault);
+                println!("Successfully created a new vault. Vault is now unlocked.");
                 (
-                    LoaderState::Loaded(VaultProcessor::new(vault)),
+                    LoaderState::Loaded(vp),
                     Followup::None,
                 )
             },
@@ -94,10 +96,13 @@ impl Handler for Load {
                 }
             },
             |vault| {
-                (
-                    LoaderState::Loaded(VaultProcessor::new(vault)),
-                    Followup::None,
-                )
+                let vp = VaultProcessor::new(vault);
+                println!(
+                    "Loaded vault {}{}",
+                    if self.path { "at " } else { "" },
+                    self.name
+                );
+                (LoaderState::Loaded(vp), Followup::None)
             },
         )
     }
