@@ -105,15 +105,19 @@ impl VaultLoader {
         );
         
         let mut state = LoaderState::Select;
+        let mut secret_handler = Followup::None;
         if let Some(default_vault) = entries.get_default() {
             let load = Load::new(default_vault);
-            (state, _) = load.handle(&mut entries);
+            (state, secret_handler) = load.handle(&mut entries);
         }
 
         VaultLoader {
             entries,
-            process_secret: None,
-            state
+            process_secret: match secret_handler {
+                Followup::Secret(handler) => Some(handler),
+                Followup::None => None,
+            },
+            state,
         }
     }
 }
