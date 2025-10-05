@@ -2,7 +2,7 @@ use crate::vault_processor::VaultState;
 use crate::vault_processor::handler::{Followup, Handler, Verbosity};
 use arboard::Clipboard;
 use clap::Args;
-use mpw_core::vault::{Vault, VaultErrorStack};
+use mpw_core::vault::Vault;
 use std::path::PathBuf;
 use crate::print_if_error;
 

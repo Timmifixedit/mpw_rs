@@ -17,7 +17,6 @@ const PW_EXTENSION: &'static str = "pwEnc";
 const LOGIN_EXTENSION: &'static str = "lgEnc";
 const FILE_EXTENSION: &'static str = "enc";
 const FILE_LIST: &'static str = constcat::concat!("EncryptedFiles", ".", VLT_EXTENSION);
-const CONFIG_FILE: &'static str = constcat::concat!("config", ".", VLT_EXTENSION);
 
 #[derive(thiserror::Error, Debug)]
 pub enum VaultError {

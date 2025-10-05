@@ -1,6 +1,5 @@
 use crate::error;
 use secure_string::SecureVec;
-use std::fs;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Read, Seek, Write};
 use std::path::Path;
