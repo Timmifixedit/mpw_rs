@@ -178,7 +178,14 @@ impl CommandProcessor for VaultLoader {
             return;
         }
 
-        let args = command.trim().split_whitespace();
+        let args = match shlex::split(command) {
+            Some(args) => args,
+            None => {
+                println!("Invalid command syntax. Did you forget a quote?");
+                return;
+            }
+        };
+
         let parsed = match LoaderCli::try_parse_from(args) {
             Ok(cli) => cli,
             Err(e) => {
