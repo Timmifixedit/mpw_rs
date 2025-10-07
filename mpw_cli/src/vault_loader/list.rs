@@ -17,7 +17,7 @@ impl Handler for List {
     fn handle(self, entries: &mut PathManager) -> (LoaderState, Followup) {
         let content = entries.list_entries(self.path, self.search.as_deref());
         for entry in content {
-            print!("{}", entry);
+            println!("{}", entry);
         }
 
         (LoaderState::Select, Followup::None)

@@ -4,11 +4,6 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use thiserror;
 
-#[cfg(windows)]
-const ENDL: &str = "\r\n";
-#[cfg(not(windows))]
-const ENDL: &str = "\n";
-
 #[derive(Debug, thiserror::Error)]
 pub enum CreationError {
     #[error("Invalid JSON {0}")]
@@ -162,9 +157,9 @@ impl PathManager {
             let default = self.default.as_ref().map_or_else(|| false, |d| k == d);
             let s = format!("{}{}", if default { "*" } else { "" }, k);
             if show_val {
-                entries.push(format!("{s} => {}{ENDL}", v.to_string_lossy()));
+                entries.push(format!("{s} => {}", v.to_string_lossy()));
             } else {
-                entries.push(format!("{s}{ENDL}"));
+                entries.push(s);
             }
         }
         entries
