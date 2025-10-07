@@ -17,6 +17,8 @@ use load::Load;
 use mpw_core::path_manager::PathManager;
 use mv::Move;
 use remove::Remove;
+use rustyline::Context;
+use rustyline::completion::Completer;
 use secure_string::SecureString;
 use std::fmt::{Display, Formatter};
 use std::io::Write;
@@ -145,6 +147,23 @@ impl Drop for VaultLoader {
             },
             "Could not save config file: "
         );
+    }
+}
+
+impl Completer for VaultLoader {
+    type Candidate = String;
+
+    fn complete(
+        &self,
+        line: &str,
+        pos: usize,
+        ctx: &Context<'_>,
+    ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
+        if let LoaderState::Loaded(vp) = &self.state {
+            return vp.complete(line, pos, ctx);
+        }
+
+        Ok((0, vec![]))
     }
 }
 

@@ -1,6 +1,7 @@
+use rustyline::completion::Completer;
 use secure_string::SecureString;
 
-pub trait CommandProcessor {
+pub trait CommandProcessor: Completer<Candidate = String> {
     fn process_command(&mut self, command: &str);
     fn process_raw(&mut self, command: &str);
     fn process_secret(&mut self, secret: SecureString);

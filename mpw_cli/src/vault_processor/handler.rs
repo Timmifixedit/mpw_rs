@@ -1,7 +1,7 @@
-use arboard::Clipboard;
-use secure_string::SecureString;
-use mpw_core::vault::Vault;
 use crate::vault_processor::VaultState;
+use arboard::Clipboard;
+use mpw_core::vault::Vault;
+use secure_string::SecureString;
 
 pub type RawHandler = Box<dyn FnOnce(&mut Vault, String) -> (VaultState, Followup)>;
 pub type SecretHandler = Box<dyn FnOnce(&mut Vault, SecureString) -> (VaultState, Followup)>;

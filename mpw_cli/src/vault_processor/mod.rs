@@ -1,5 +1,6 @@
 mod add;
 mod chpw;
+mod completer;
 mod enc_dec;
 mod get;
 mod handler;
@@ -10,6 +11,7 @@ mod remove;
 mod secure_release;
 
 use crate::command_processor as cp;
+use crate::vault_processor::completer::CompleterImpl;
 use add::Add;
 use arboard;
 use arboard::Clipboard;
@@ -23,6 +25,8 @@ use lock::Lock;
 use mpw_core::vault::Vault;
 use mv::Move;
 use remove::Remove;
+use rustyline::Context;
+use rustyline::completion::Completer;
 use secure_release::{Release, Secure};
 use secure_string::SecureString;
 
@@ -133,6 +137,18 @@ impl VaultProcessor {
 
     pub fn is_locked(&self) -> bool {
         self.state == VaultState::Locked
+    }
+}
+
+impl Completer for VaultProcessor {
+    type Candidate = String;
+    fn complete(
+        &self,
+        line: &str,
+        pos: usize,
+        ctx: &Context<'_>,
+    ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
+        CompleterImpl::new(&self.vault).complete(line, pos, ctx)
     }
 }
 

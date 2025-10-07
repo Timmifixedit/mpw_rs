@@ -4,12 +4,14 @@ mod vault_loader;
 mod config;
 mod util;
 
+use std::cell::RefCell;
 use crate::command_processor::CommandProcessor;
 use crate::vault_loader::VaultLoader;
 use mpw_core::vault::VaultError;
-use rustyline::DefaultEditor;
+use rustyline::{Context, DefaultEditor, Editor};
 use rustyline::error::ReadlineError;
 use std::process::exit;
+use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use thiserror;
@@ -28,8 +30,37 @@ impl From<String> for AppError {
     }
 }
 
+struct MyHelper {
+    pub completer: Rc<RefCell<VaultLoader>>,
+}
+
+impl MyHelper{
+    pub fn new(completer: Rc<RefCell<VaultLoader>>) -> Self {
+        Self { completer }
+    }
+}
+
+impl rustyline::completion::Completer for MyHelper {
+    type Candidate = String;
+    fn complete(&self, line: &str, pos: usize, ctx: &Context<'_>) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
+        self.completer.borrow().complete(line, pos, ctx)
+    }
+}
+
+impl rustyline::highlight::Highlighter for MyHelper {}
+
+impl rustyline::validate::Validator for MyHelper {}
+
+impl rustyline::hint::Hinter for MyHelper {
+    type Hint = String;
+}
+impl rustyline::Helper for MyHelper {}
+
 fn run() -> Result<(), AppError> {
-    let mut rl = DefaultEditor::new().expect("Failed to create readline editor");
+    let vl = Rc::new(RefCell::new(VaultLoader::new()));
+    let helper = MyHelper::new(vl.clone());
+    let mut rl = Editor::new().expect("Failed to create readline editor");//DefaultEditor::new().expect("Failed to create readline editor");
+    rl.set_helper(Some(helper));
 
     // Set up Ctrl-C handler
     let interrupted = Arc::new(AtomicBool::new(false));
@@ -39,22 +70,20 @@ fn run() -> Result<(), AppError> {
         interrupted_clone.store(true, Ordering::SeqCst);
     })
     .expect("Error setting Ctrl-C handler");
-
-    let mut vl = VaultLoader::new();
     loop {
 
         // Reset the interrupted flag at the start of each loop
         interrupted.store(false, Ordering::SeqCst);
 
-        let prompt = if vl.require_secret() {
+        let prompt = if vl.borrow().require_secret() {
             "Password: "
-        } else if vl.require_raw() {
+        } else if vl.borrow().require_raw() {
             "... "
         } else {
             "> "
         };
 
-        let readline = if vl.require_secret() {
+        let readline = if vl.borrow().require_secret() {
             // Use rpassword for secret input (masked)
             print!("{}", prompt);
             use std::io::Write;
@@ -75,32 +104,32 @@ fn run() -> Result<(), AppError> {
 
         match readline {
             Ok(line) => {
-                if !vl.require_secret() {
+                if !vl.borrow().require_secret() {
                     rl.add_history_entry(&line)
                         .expect("Failed to add history entry");
                 }
                 let input = line.trim();
                 if input == "exit" {
-                    vl.handle_shutdown();
+                    vl.borrow_mut().handle_shutdown();
                     break;
                 }
 
-                if vl.require_raw() {
-                    vl.process_raw(input);
-                } else if vl.require_secret() {
-                    vl.process_secret(input.into());
+                if vl.borrow().require_raw() {
+                    vl.borrow_mut().process_raw(input);
+                } else if vl.borrow().require_secret() {
+                    vl.borrow_mut().process_secret(input.into());
                 } else {
                     if input == "clear" {
                         rl.clear_screen().expect("Failed to clear screen");
                         continue;
                     }
 
-                    vl.process_command(input);
+                    vl.borrow_mut().process_command(input);
                 }
             }
             Err(ReadlineError::Interrupted) => {
                 // Ctrl+C was pressed
-                vl.handle_cancel();
+                vl.borrow_mut().handle_cancel();
                 println!("^C");
             }
             Err(ReadlineError::Eof) => {
