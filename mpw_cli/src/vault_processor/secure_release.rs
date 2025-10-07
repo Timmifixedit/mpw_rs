@@ -7,6 +7,7 @@ use mpw_core::vault::Vault;
 use rustyline::Context;
 use rustyline::completion::{Completer, extract_word};
 use std::path::PathBuf;
+use crate::vault_processor::enc_dec::print_error;
 
 pub struct ReleaseCompleter<'v> {
     vault: &'v Vault,
@@ -66,15 +67,7 @@ impl Handler for Release {
     fn handle(self, vault: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup) {
         for name in self.names {
             if let Err(err) = vault.remove_fs_entry(&name) {
-                match &self.verbose {
-                    Verbosity::Quiet => {}
-                    Verbosity::Normal => {
-                        println!("Errors during file decryption for entry {name}:");
-                    }
-                    Verbosity::All => {
-                        println!("Errors during file decryption for entry {name}: {err}");
-                    }
-                }
+                print_error(err, self.verbose.clone());
             }
         }
 
