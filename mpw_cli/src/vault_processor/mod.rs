@@ -9,6 +9,7 @@ mod lock;
 mod mv;
 mod remove;
 mod secure_release;
+mod util;
 
 use crate::command_processor as cp;
 use crate::vault_processor::completer::CompleterImpl;

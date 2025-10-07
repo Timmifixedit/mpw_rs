@@ -1,10 +1,42 @@
-use crate::vault_processor::VaultState;
 use crate::vault_processor::handler::{Followup, Handler};
+use crate::vault_processor::{VaultState, util};
 use arboard::Clipboard;
 use clap::Args;
 use mpw_core::vault;
 use mpw_core::vault::{Vault, VaultError};
+use rustyline::completion::{extract_word, Completer};
 use std::num::NonZeroU32;
+
+pub struct AddCompleter<'v> {
+    vault: &'v Vault,
+}
+
+impl<'v> AddCompleter<'v> {
+    pub fn new(vault: &'v Vault) -> Self {
+        AddCompleter { vault }
+    }
+}
+
+impl<'v> Completer for AddCompleter<'v> {
+    type Candidate = String;
+    fn complete(
+        &self,
+        line: &str,
+        pos: usize,
+        _: &rustyline::Context<'_>,
+    ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
+        let (start, word) = extract_word(line, pos, None, |c| c.is_whitespace());
+        if !line
+            .split_whitespace()
+            .any(|s| s == "-o" || s == "--overwrite")
+        {
+            return Ok((start, vec![]));
+        }
+
+        let candidates = util::list_candidates(self.vault, Some(word), false)?;
+        Ok((start, candidates))
+    }
+}
 
 #[derive(Debug, Args)]
 #[command(about = "add a password", long_about = None)]

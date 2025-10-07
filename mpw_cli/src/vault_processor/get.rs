@@ -1,5 +1,5 @@
-use crate::vault_processor::VaultState;
 use crate::vault_processor::handler::{Followup, Handler};
+use crate::vault_processor::{VaultState, util};
 use arboard::Clipboard;
 use clap::Args;
 use mpw_core::vault::{Vault, VaultError};
@@ -25,13 +25,7 @@ impl<'v> Completer for GetCompleter<'v> {
         _: &Context<'_>,
     ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
         let (start, word) = extract_word(line, pos, None, |c| c.is_whitespace());
-        let candidates = match self.vault.list_passwords(Some(word)) {
-            Ok(pw_list) => pw_list,
-            Err(VaultError::IoError(e)) => return Err(rustyline::error::ReadlineError::Io(e)),
-            Err(VaultError::VaultLocked) => panic!("Vault is locked"),
-            Err(e) => panic!("Unexpected error: {}", e.to_string()),
-        };
-
+        let candidates = util::list_candidates(self.vault, Some(word), false)?;
         Ok((start, candidates))
     }
 }

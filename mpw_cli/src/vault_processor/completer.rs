@@ -1,4 +1,4 @@
-use crate::vault_processor::get;
+use crate::vault_processor::{add, enc_dec, get, mv, remove, secure_release};
 use mpw_core::vault::Vault;
 use rustyline::Context;
 use rustyline::completion::Completer;
@@ -28,6 +28,14 @@ impl<'v> Completer for CompleterImpl<'v> {
     ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
         match get_command(line) {
             Some("get") => get::GetCompleter::new(self.vault).complete(line, pos, ctx),
+            Some("add") => add::AddCompleter::new(self.vault).complete(line, pos, ctx),
+            Some("mv") => mv::MoveCompleter::new(self.vault).complete(line, pos, ctx),
+            Some("rm") => remove::RemoveCompleter::new(self.vault).complete(line, pos, ctx),
+            Some("rel") => {
+                secure_release::ReleaseCompleter::new(self.vault).complete(line, pos, ctx)
+            }
+            Some("enc") => {enc_dec::EncDecCompleter::new(self.vault).complete(line, pos, ctx)}
+            Some("dec")  => {enc_dec::EncDecCompleter::new(self.vault).complete(line, pos, ctx)}
             _ => Ok((0, vec![])),
         }
     }

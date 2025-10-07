@@ -1,9 +1,40 @@
 use crate::vault_processor::VaultState;
 use crate::vault_processor::handler::{Followup, Handler, Verbosity};
+use crate::vault_processor::util::list_candidates;
 use arboard::Clipboard;
 use clap::Args;
 use mpw_core::vault::{Vault, VaultError, VaultErrorStack};
+use rustyline::Context;
+use rustyline::completion::{Completer, extract_word};
 use std::path::Path;
+
+pub struct EncDecCompleter<'v> {
+    vault: &'v Vault,
+}
+
+impl<'v> EncDecCompleter<'v> {
+    pub fn new(vault: &'v Vault) -> Self {
+        Self { vault }
+    }
+}
+
+impl<'v> Completer for EncDecCompleter<'v> {
+    type Candidate = String;
+    fn complete(
+        &self,
+        line: &str,
+        pos: usize,
+        _: &Context<'_>,
+    ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
+        let (start, word) = extract_word(line, pos, None, |c| c.is_whitespace());
+        if !line.split_whitespace().any(|s| s == "-p" || s == "--path") {
+            let candidates = list_candidates(self.vault, Some(word), true)?;
+            return Ok((start, candidates));
+        }
+        //TODO
+        Ok((start, vec![]))
+    }
+}
 
 #[derive(Debug, Args)]
 #[command(about = "encrypt file system entries", long_about = None)]

@@ -1,8 +1,35 @@
-use crate::vault_processor::VaultState;
 use crate::vault_processor::handler::{Followup, Handler};
+use crate::vault_processor::{VaultState, util};
 use arboard::Clipboard;
 use clap::Args;
 use mpw_core::vault::Vault;
+use rustyline::Context;
+use rustyline::completion::{extract_word, Completer};
+
+pub struct RemoveCompleter<'v> {
+    vault: &'v Vault,
+}
+
+impl<'v> RemoveCompleter<'v> {
+    pub fn new(vault: &'v Vault) -> Self {
+        Self { vault }
+    }
+}
+
+impl<'v> Completer for RemoveCompleter<'v> {
+    type Candidate = String;
+
+    fn complete(
+        &self,
+        line: &str,
+        pos: usize,
+        ctx: &Context<'_>,
+    ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
+        let (start, word) = extract_word(line, pos, None, |c| c.is_whitespace());
+        let candidates = util::list_candidates(self.vault, Some(word), false)?;
+        Ok((start, candidates))
+    }
+}
 
 #[derive(Debug, Args)]
 #[command(about = "remove passwords", long_about = None)]
