@@ -4,7 +4,7 @@ use arboard::Clipboard;
 use clap::Args;
 use mpw_core::vault;
 use mpw_core::vault::{Vault, VaultError};
-use rustyline::completion::{extract_word, Completer};
+use rustyline::completion::{Completer, extract_word};
 use std::num::NonZeroU32;
 
 pub struct AddCompleter<'v> {

@@ -2,7 +2,7 @@ use crate::vault_processor::handler::{Followup, Handler};
 use crate::vault_processor::{VaultState, util};
 use arboard::Clipboard;
 use clap::Args;
-use mpw_core::vault::{Vault, VaultError};
+use mpw_core::vault::Vault;
 use rustyline::Context;
 use rustyline::completion::{Completer, extract_word};
 

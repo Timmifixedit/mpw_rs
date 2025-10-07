@@ -4,7 +4,7 @@ use arboard::Clipboard;
 use clap::Args;
 use mpw_core::vault::Vault;
 use rustyline::Context;
-use rustyline::completion::{extract_word, Completer};
+use rustyline::completion::{Completer, extract_word};
 
 pub struct RemoveCompleter<'v> {
     vault: &'v Vault,

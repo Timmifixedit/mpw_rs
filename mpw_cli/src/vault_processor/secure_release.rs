@@ -1,13 +1,13 @@
 use crate::print_if_error;
-use crate::vault_processor::{util, VaultState};
+use crate::vault_processor::enc_dec::print_error;
 use crate::vault_processor::handler::{Followup, Handler, Verbosity};
+use crate::vault_processor::{VaultState, util};
 use arboard::Clipboard;
 use clap::Args;
 use mpw_core::vault::Vault;
 use rustyline::Context;
 use rustyline::completion::{Completer, extract_word};
 use std::path::PathBuf;
-use crate::vault_processor::enc_dec::print_error;
 
 pub struct ReleaseCompleter<'v> {
     vault: &'v Vault,
@@ -30,7 +30,6 @@ impl<'v> Completer for ReleaseCompleter<'v> {
         let (start, word) = extract_word(line, pos, None, |c| c.is_whitespace());
         let candidates = util::list_candidates(self.vault, Some(word), true)?;
         Ok((start, candidates))
-
     }
 }
 
