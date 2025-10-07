@@ -530,7 +530,10 @@ impl Vault {
 
         self.verify_file_path(dir_path, true)?;
         let mut errors = VaultErrorStack::new();
-        for entry in std::fs::read_dir(dir_path).map_err(|e| -> VaultError { e.into() })? {
+        let contents = std::fs::read_dir(dir_path)
+            .map_err(|e| -> VaultError { e.into() })?
+            .collect::<Vec<_>>();
+        for entry in contents {
             let body = || -> Result<(), ()> {
                 let entry = errors.add_if_error(entry)?;
                 let path = entry.path();
