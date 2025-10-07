@@ -121,6 +121,32 @@ fn assert_valid_name(pw_name: &str) -> Result<(), VaultError> {
     Ok(())
 }
 
+fn encrypted_file_path(file_path: &Path) -> PathBuf {
+    if file_path.is_dir()
+        || file_path
+            .extension()
+            .is_some_and(|e| e.to_string_lossy() == FILE_EXTENSION)
+    {
+        return file_path.to_path_buf();
+    }
+
+    file_path.with_extension(
+        file_path
+            .extension()
+            .map_or_else(|| "".into(), |e| e.to_string_lossy().to_string() + ".")
+            + FILE_EXTENSION,
+    )
+}
+
+fn try_get_file_to_decrypt(file_path: &Path) -> VaultResult<PathBuf> {
+    let encrypted = encrypted_file_path(file_path);
+    if file_path.exists() && !encrypted.exists() {
+        return Err(VaultError::NotEncrypted(file_path.to_string_lossy().to_string()).into());
+    }
+
+    Ok(encrypted)
+}
+
 pub fn random_password(
     len: NonZeroU32,
     forbidden_chars: Option<&str>,
@@ -429,12 +455,7 @@ impl Vault {
             return VaultError::AlreadyEncrypted(file_path.to_string_lossy().to_string()).into();
         }
 
-        let dest_path = file_path.with_extension(
-            file_path
-                .extension()
-                .map_or_else(|| "".into(), |e| e.to_string_lossy().to_string() + ".")
-                + FILE_EXTENSION,
-        );
+        let dest_path = encrypted_file_path(file_path);
         if dest_path.exists() {
             return Err(IO::new(
                 EK::AlreadyExists,
@@ -588,7 +609,7 @@ impl Vault {
         if entry.is_dir() {
             self.decrypt_directory(&entry)?;
         } else {
-            self.decrypt_file(&entry)?;
+            self.decrypt_file(&try_get_file_to_decrypt(&entry)?)?;
         }
 
         Ok(())
@@ -604,6 +625,11 @@ impl Vault {
         if entry.is_dir() {
             self.encrypt_directory(entry)?;
         } else {
+            if !entry.exists() && encrypted_file_path(&entry).exists() {
+                return Err(
+                    VaultError::AlreadyEncrypted(entry.to_string_lossy().to_string()).into(),
+                );
+            }
             self.encrypt_file(entry)?;
         }
 
@@ -620,7 +646,7 @@ impl Vault {
         if entry.is_dir() {
             self.decrypt_directory(entry)?;
         } else {
-            self.decrypt_file(entry)?;
+            self.decrypt_file(&try_get_file_to_decrypt(&entry)?)?;
         }
 
         Ok(())
