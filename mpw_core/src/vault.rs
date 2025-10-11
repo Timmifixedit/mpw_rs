@@ -197,7 +197,9 @@ impl Vault {
         let files = match PathManager::load(&file_list) {
             Ok(f) => f,
             Err(e) => match e {
-                CreationError::InvalidJson(_) => {
+                CreationError::InvalidJson(e) => {
+                    println!("Invalid file list: {e}");
+                    println!("Recreating file list...");
                     std::fs::File::create(file_list)?;
                     PathManager::new([].into())
                 }
