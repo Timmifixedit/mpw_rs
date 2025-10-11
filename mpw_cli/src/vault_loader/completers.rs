@@ -1,7 +1,7 @@
 use rustyline::completion::Completer;
 use rustyline::Context;
 use mpw_core::path_manager::PathManager;
-use crate::vault_loader::load;
+use crate::vault_loader::{load, remove};
 
 pub struct CompleterImpl<'e> {
     entries: &'e PathManager,
@@ -23,6 +23,7 @@ impl<'e> Completer for CompleterImpl<'e> {
     fn complete(&self, line: &str, pos: usize, ctx: &Context<'_>) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
         match get_command(line) {
             Some("load") => load::LoadCompleter::new(self.entries).complete(line, pos, ctx),
+            Some("rm") => remove::RemoveCompleter::new(self.entries).complete(line, pos, ctx),
             _ => Ok((0, vec![line.to_string()])),
         }
     }
