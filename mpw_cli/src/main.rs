@@ -109,16 +109,16 @@ fn run() -> Result<(), AppError> {
                         .expect("Failed to add history entry");
                 }
                 let input = line.trim();
-                if input == "exit" {
-                    vl.borrow_mut().handle_shutdown();
-                    break;
-                }
-
                 if vl.borrow().require_raw() {
                     vl.borrow_mut().process_raw(input);
                 } else if vl.borrow().require_secret() {
                     vl.borrow_mut().process_secret(input.into());
                 } else {
+                    if input == "exit" {
+                        vl.borrow_mut().handle_shutdown();
+                        break;
+                    }
+
                     if input == "clear" {
                         rl.clear_screen().expect("Failed to clear screen");
                         continue;
