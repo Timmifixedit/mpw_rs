@@ -145,7 +145,12 @@ impl PathManager {
     /// * `show_val`: if true, the values are shown
     /// # Returns
     /// * vector string with all entries
-    pub fn list_entries(&self, show_val: bool, search_string: Option<&str>) -> Vec<String> {
+    pub fn list_entries(
+        &self,
+        show_val: bool,
+        search_string: Option<&str>,
+        show_default: bool,
+    ) -> Vec<String> {
         let mut entries = Vec::with_capacity(self.entries.len());
         for (k, v) in &self.entries {
             if let Some(s) = search_string
@@ -154,7 +159,7 @@ impl PathManager {
                 continue;
             }
 
-            let default = self.default.as_ref().map_or_else(|| false, |d| k == d);
+            let default = self.default.as_ref().map_or_else(|| false, |d| k == d) && show_default;
             let s = format!("{}{}", if default { "*" } else { "" }, k);
             if show_val {
                 entries.push(format!("{s} => {}", v.to_string_lossy()));

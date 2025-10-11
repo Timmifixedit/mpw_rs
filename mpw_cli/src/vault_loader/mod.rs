@@ -4,6 +4,7 @@ mod list;
 mod load;
 mod mv;
 mod remove;
+mod completers;
 
 use crate::command_processor::CommandProcessor;
 use crate::config::get_config_path;
@@ -22,6 +23,7 @@ use rustyline::completion::Completer;
 use secure_string::SecureString;
 use std::fmt::{Display, Formatter};
 use std::io::Write;
+use crate::vault_loader::completers::CompleterImpl;
 
 pub enum LoaderState {
     Select,
@@ -163,7 +165,7 @@ impl Completer for VaultLoader {
             return vp.complete(line, pos, ctx);
         }
 
-        Ok((0, vec![]))
+        CompleterImpl::new(&self.entries).complete(line, pos, ctx)
     }
 }
 

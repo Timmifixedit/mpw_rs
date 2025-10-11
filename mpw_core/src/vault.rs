@@ -362,7 +362,7 @@ impl Vault {
     }
 
     pub fn list_files(&self, show_path: bool, search_string: Option<&str>) -> Vec<String> {
-        self.file_list.list_entries(show_path, search_string)
+        self.file_list.list_entries(show_path, search_string, false)
     }
 
     fn pw_name_to_path(&self, name: &str) -> (PathBuf, PathBuf) {

@@ -4,7 +4,40 @@ use crate::vault_processor::VaultProcessor;
 use clap::Args;
 use mpw_core::path_manager::PathManager;
 use mpw_core::vault::{Vault, VaultError};
+use rustyline::Context;
+use rustyline::completion::{extract_word, Completer};
 use std::path::{Path, PathBuf};
+
+pub struct LoadCompleter<'e> {
+    entries: &'e PathManager,
+}
+
+impl<'e> Completer for LoadCompleter<'e> {
+    type Candidate = String;
+
+    fn complete(
+        &self,
+        line: &str,
+        pos: usize,
+        _: &Context<'_>,
+    ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
+        let (start, word) = extract_word(line, pos, None, |c| c.is_whitespace());
+        let load_path = line.split_whitespace().any(|s| s == "-p" || s == "--path");
+        if load_path {
+            //TODO
+            return Ok((0, vec![]));
+        }
+
+        let candidates = self.entries.list_entries(false, Some(word), false);
+        Ok((start, candidates))
+    }
+}
+
+impl<'e> LoadCompleter<'e> {
+    pub fn new(entries: &'e PathManager) -> Self {
+        Self { entries }
+    }
+}
 
 #[derive(Debug, Args)]
 #[command(about = "load a vault from the list or from a path", long_about = None)]
@@ -34,10 +67,7 @@ fn create_new_vault(path: PathBuf) -> (LoaderState, Followup) {
             |_| {
                 let vp = VaultProcessor::new(vault);
                 println!("Successfully created a new vault. Vault is now unlocked.");
-                (
-                    LoaderState::Loaded(vp),
-                    Followup::None,
-                )
+                (LoaderState::Loaded(vp), Followup::None)
             },
         )
     };
