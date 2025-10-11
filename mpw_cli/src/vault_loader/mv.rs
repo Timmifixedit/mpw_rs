@@ -3,6 +3,43 @@ use crate::vault_loader::LoaderState;
 use crate::vault_loader::handler::{Followup, Handler};
 use clap::Args;
 use mpw_core::path_manager::{PathManager, PathManagerError};
+use rustyline::Context;
+use rustyline::completion::Completer;
+
+pub struct MoveCompleter<'e> {
+    entries: &'e PathManager,
+}
+
+impl<'e> MoveCompleter<'e> {
+    pub fn new(entries: &'e PathManager) -> Self {
+        MoveCompleter { entries }
+    }
+}
+
+impl<'e> Completer for MoveCompleter<'e> {
+    type Candidate = String;
+
+    fn complete(
+        &self,
+        line: &str,
+        pos: usize,
+        _: &Context<'_>,
+    ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
+        let (start, word) =
+            rustyline::completion::extract_word(line, pos, None, |c| c.is_whitespace());
+        let words = line
+            .split_whitespace()
+            .skip(1)
+            .filter(|s| !s.starts_with('-'))
+            .collect::<Vec<_>>();
+        let word_idx = words.iter().position(|s| s.starts_with(word));
+        if words.len() > 0 && (word.is_empty() || word_idx.is_none_or(|idx| idx > 0)) {
+            return Ok((start, vec![]));
+        }
+
+        let candidates = self.entries.list_entries(false, Some(word), false);
+        Ok((start, candidates))    }
+}
 
 #[derive(Debug, Args)]
 #[command(about = "move (rename) a saved vault", long_about = None)]
@@ -20,7 +57,11 @@ impl Handler for Move {
             let path = entries
                 .get(&self.source)
                 .ok_or(PathManagerError::EntryNotFound(self.source.clone()))?;
-            entries.add(self.destination, path.to_owned(), entries.is_default(&self.source))?;
+            entries.add(
+                self.destination,
+                path.to_owned(),
+                entries.is_default(&self.source),
+            )?;
             Ok::<(), PathManagerError>(entries.remove(&self.source))
         });
 
