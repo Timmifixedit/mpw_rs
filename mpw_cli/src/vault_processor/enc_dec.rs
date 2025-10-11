@@ -5,16 +5,20 @@ use arboard::Clipboard;
 use clap::Args;
 use mpw_core::vault::{Vault, VaultError, VaultErrorStack};
 use rustyline::Context;
-use rustyline::completion::{Completer, extract_word};
+use rustyline::completion::{Completer, FilenameCompleter, extract_word};
 use std::path::Path;
 
 pub struct EncDecCompleter<'v> {
     vault: &'v Vault,
+    file_completer: FilenameCompleter,
 }
 
 impl<'v> EncDecCompleter<'v> {
     pub fn new(vault: &'v Vault) -> Self {
-        Self { vault }
+        Self {
+            vault,
+            file_completer: FilenameCompleter::new(),
+        }
     }
 }
 
@@ -24,15 +28,16 @@ impl<'v> Completer for EncDecCompleter<'v> {
         &self,
         line: &str,
         pos: usize,
-        _: &Context<'_>,
+        ctx: &Context<'_>,
     ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
         let (start, word) = extract_word(line, pos, None, |c| c.is_whitespace());
         if !line.split_whitespace().any(|s| s == "-p" || s == "--path") {
             let candidates = list_candidates(self.vault, Some(word), true)?;
             return Ok((start, candidates));
         }
-        //TODO
-        Ok((start, vec![]))
+        self.file_completer
+            .complete(line, pos, ctx)
+            .map(|(s, c)| (s, c.into_iter().map(|p| p.replacement).collect()))
     }
 }
 

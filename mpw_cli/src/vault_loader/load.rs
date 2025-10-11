@@ -5,11 +5,12 @@ use clap::Args;
 use mpw_core::path_manager::PathManager;
 use mpw_core::vault::{Vault, VaultError};
 use rustyline::Context;
-use rustyline::completion::{extract_word, Completer};
+use rustyline::completion::{Completer, FilenameCompleter, extract_word};
 use std::path::{Path, PathBuf};
 
 pub struct LoadCompleter<'e> {
     entries: &'e PathManager,
+    file_completer: FilenameCompleter,
 }
 
 impl<'e> Completer for LoadCompleter<'e> {
@@ -19,13 +20,15 @@ impl<'e> Completer for LoadCompleter<'e> {
         &self,
         line: &str,
         pos: usize,
-        _: &Context<'_>,
+        ctx: &Context<'_>,
     ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
         let (start, word) = extract_word(line, pos, None, |c| c.is_whitespace());
         let load_path = line.split_whitespace().any(|s| s == "-p" || s == "--path");
         if load_path {
-            //TODO
-            return Ok((0, vec![]));
+            return self
+                .file_completer
+                .complete(line, pos, ctx)
+                .map(|(start, c)| (start, c.into_iter().map(|p| p.replacement).collect()));
         }
 
         let candidates = self.entries.list_entries(false, Some(word), false);
@@ -35,7 +38,10 @@ impl<'e> Completer for LoadCompleter<'e> {
 
 impl<'e> LoadCompleter<'e> {
     pub fn new(entries: &'e PathManager) -> Self {
-        Self { entries }
+        Self {
+            entries,
+            file_completer: FilenameCompleter::new(),
+        }
     }
 }
 
