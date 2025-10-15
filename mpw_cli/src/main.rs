@@ -17,6 +17,15 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use thiserror;
 
+const LOGO: &'static str = r"
+____    ____  _______  ____      ____         ______  _____     _____
+|_   \  /   _||_   __ \|_  _|    |_  _|      .' ___  ||_   _|   |_   _|
+  |   \/   |    | |__) | \ \  /\  / /______ / .'   \_|  | |       | |
+  | |\  /| |    |  ___/   \ \/  \/ /|______|| |         | |   _   | |
+ _| |_\/_| |_  _| |_       \  /\  /         \ `.___.'\ _| |__/ | _| |_
+|_____||_____||_____|       \/  \/           `.____ .'|________||_____|
+                                                                        ";
+
 #[derive(thiserror::Error, Debug)]
 enum AppError {
     #[error("CLI error: {0}")]
@@ -63,6 +72,7 @@ impl rustyline::hint::Hinter for MyHelper {
 impl rustyline::Helper for MyHelper {}
 
 fn run() -> Result<(), AppError> {
+    println!("\n{}\n", LOGO);
     let vl = Rc::new(RefCell::new(VaultLoader::new()));
     let helper = MyHelper::new(vl.clone());
     let mut rl = Editor::new().expect("Failed to create readline editor");
@@ -75,7 +85,7 @@ fn run() -> Result<(), AppError> {
     ctrlc::set_handler(move || {
         interrupted_clone.store(true, Ordering::SeqCst);
     })
-    .expect("Error setting Ctrl-C handler");
+        .expect("Error setting Ctrl-C handler");
     loop {
         // Reset the interrupted flag at the start of each loop
         interrupted.store(false, Ordering::SeqCst);
