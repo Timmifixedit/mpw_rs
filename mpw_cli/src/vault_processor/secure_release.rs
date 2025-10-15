@@ -1,4 +1,5 @@
 use crate::print_if_error;
+use crate::util::current_arg_idx;
 use crate::vault_processor::enc_dec::print_error;
 use crate::vault_processor::handler::{Followup, Handler, Verbosity};
 use crate::vault_processor::{VaultState, util};
@@ -6,7 +7,7 @@ use arboard::Clipboard;
 use clap::Args;
 use mpw_core::vault::Vault;
 use rustyline::Context;
-use rustyline::completion::{Completer, extract_word};
+use rustyline::completion::{Completer, FilenameCompleter, extract_word};
 use std::path::PathBuf;
 
 pub struct ReleaseCompleter<'v> {
@@ -30,6 +31,36 @@ impl<'v> Completer for ReleaseCompleter<'v> {
         let (start, word) = extract_word(line, pos, None, |c| c.is_whitespace());
         let candidates = util::list_candidates(self.vault, Some(word), true)?;
         Ok((start, candidates))
+    }
+}
+
+pub struct SecureCompleter {
+    file_completer: FilenameCompleter,
+}
+
+impl SecureCompleter {
+    pub fn new() -> Self {
+        Self {
+            file_completer: FilenameCompleter::new(),
+        }
+    }
+}
+
+impl Completer for SecureCompleter {
+    type Candidate = String;
+    fn complete(
+        &self,
+        line: &str,
+        pos: usize,
+        ctx: &Context<'_>,
+    ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
+        if current_arg_idx(pos, line) < 2 {
+            return Ok((0, vec![]));
+        }
+
+        self.file_completer
+            .complete(line, pos, ctx)
+            .map(|(s, c)| (s, c.into_iter().map(|p| p.replacement).collect()))
     }
 }
 

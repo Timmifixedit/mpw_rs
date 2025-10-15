@@ -34,8 +34,9 @@ impl<'v> Completer for CompleterImpl<'v> {
             Some("rel") => {
                 secure_release::ReleaseCompleter::new(self.vault).complete(line, pos, ctx)
             }
-            Some("enc") => {enc_dec::EncDecCompleter::new(self.vault).complete(line, pos, ctx)}
-            Some("dec")  => {enc_dec::EncDecCompleter::new(self.vault).complete(line, pos, ctx)}
+            Some("sec") => secure_release::SecureCompleter::new().complete(line, pos, ctx),
+            Some("enc") => enc_dec::EncDecCompleter::new(self.vault).complete(line, pos, ctx),
+            Some("dec") => enc_dec::EncDecCompleter::new(self.vault).complete(line, pos, ctx),
             _ => Ok((0, vec![])),
         }
     }
