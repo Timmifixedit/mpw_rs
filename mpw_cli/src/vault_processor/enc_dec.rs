@@ -1,3 +1,4 @@
+use crate::file_name_completer::FilenameCompleter;
 use crate::vault_processor::VaultState;
 use crate::vault_processor::handler::{Followup, Handler, Verbosity};
 use crate::vault_processor::util::list_candidates;
@@ -5,7 +6,7 @@ use arboard::Clipboard;
 use clap::Args;
 use mpw_core::vault::{Vault, VaultError, VaultErrorStack};
 use rustyline::Context;
-use rustyline::completion::{Completer, FilenameCompleter, extract_word};
+use rustyline::completion::{Completer, extract_word};
 use std::path::Path;
 
 pub struct EncDecCompleter<'v> {
@@ -35,9 +36,7 @@ impl<'v> Completer for EncDecCompleter<'v> {
             let candidates = list_candidates(self.vault, Some(word), true)?;
             return Ok((start, candidates));
         }
-        self.file_completer
-            .complete(line, pos, ctx)
-            .map(|(s, c)| (s, c.into_iter().map(|p| p.replacement).collect()))
+        self.file_completer.complete(line, pos, ctx)
     }
 }
 

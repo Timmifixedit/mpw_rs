@@ -1,3 +1,4 @@
+use crate::file_name_completer::FilenameCompleter;
 use crate::print_if_error;
 use crate::util::current_arg_idx;
 use crate::vault_processor::enc_dec::print_error;
@@ -7,7 +8,7 @@ use arboard::Clipboard;
 use clap::Args;
 use mpw_core::vault::Vault;
 use rustyline::Context;
-use rustyline::completion::{Completer, FilenameCompleter, extract_word};
+use rustyline::completion::{Completer, extract_word};
 use std::path::PathBuf;
 
 pub struct ReleaseCompleter<'v> {
@@ -58,9 +59,7 @@ impl Completer for SecureCompleter {
             return Ok((0, vec![]));
         }
 
-        self.file_completer
-            .complete(line, pos, ctx)
-            .map(|(s, c)| (s, c.into_iter().map(|p| p.replacement).collect()))
+        self.file_completer.complete(line, pos, ctx)
     }
 }
 

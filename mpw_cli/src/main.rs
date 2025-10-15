@@ -3,6 +3,7 @@ mod vault_processor;
 mod vault_loader;
 mod config;
 mod util;
+mod file_name_completer;
 
 use std::cell::RefCell;
 use crate::command_processor::CommandProcessor;

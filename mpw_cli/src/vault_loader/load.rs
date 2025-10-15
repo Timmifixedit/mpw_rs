@@ -1,3 +1,4 @@
+use crate::file_name_completer::FilenameCompleter;
 use crate::vault_loader::LoaderState;
 use crate::vault_loader::handler::{Followup, Handler};
 use crate::vault_processor::VaultProcessor;
@@ -5,7 +6,7 @@ use clap::Args;
 use mpw_core::path_manager::PathManager;
 use mpw_core::vault::{Vault, VaultError};
 use rustyline::Context;
-use rustyline::completion::{Completer, FilenameCompleter, extract_word};
+use rustyline::completion::{Completer, extract_word};
 use std::path::{Path, PathBuf};
 
 pub struct LoadCompleter<'e> {
@@ -25,10 +26,7 @@ impl<'e> Completer for LoadCompleter<'e> {
         let (start, word) = extract_word(line, pos, None, |c| c.is_whitespace());
         let load_path = line.split_whitespace().any(|s| s == "-p" || s == "--path");
         if load_path {
-            return self
-                .file_completer
-                .complete(line, pos, ctx)
-                .map(|(start, c)| (start, c.into_iter().map(|p| p.replacement).collect()));
+            return self.file_completer.complete(line, pos, ctx);
         }
 
         let candidates = self.entries.list_entries(false, Some(word), false);
