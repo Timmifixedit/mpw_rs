@@ -1,9 +1,9 @@
-use crate::vault_loader::LoaderState;
+use crate::print_if_error;
 use crate::vault_loader::handler::{Followup, Handler};
+use crate::vault_loader::LoaderState;
 use clap::Args;
 use mpw_core::path_manager::PathManager;
 use std::path::PathBuf;
-use crate::print_if_error;
 
 #[derive(Debug, Args)]
 #[command(about = "add a new or existing vault", long_about = None)]

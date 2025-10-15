@@ -1,12 +1,12 @@
 use crate::file_name_completer::FilenameCompleter;
-use crate::vault_processor::VaultState;
 use crate::vault_processor::handler::{Followup, Handler, Verbosity};
 use crate::vault_processor::util::list_candidates;
+use crate::vault_processor::VaultState;
 use arboard::Clipboard;
 use clap::Args;
 use mpw_core::vault::{Vault, VaultError, VaultErrorStack};
+use rustyline::completion::{extract_word, Completer};
 use rustyline::Context;
-use rustyline::completion::{Completer, extract_word};
 use std::path::Path;
 
 pub struct EncDecCompleter<'v> {

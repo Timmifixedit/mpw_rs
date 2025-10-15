@@ -3,12 +3,12 @@ use crate::print_if_error;
 use crate::util::current_arg_idx;
 use crate::vault_processor::enc_dec::print_error;
 use crate::vault_processor::handler::{Followup, Handler, Verbosity};
-use crate::vault_processor::{VaultState, util};
+use crate::vault_processor::{util, VaultState};
 use arboard::Clipboard;
 use clap::Args;
 use mpw_core::vault::Vault;
+use rustyline::completion::{extract_word, Completer};
 use rustyline::Context;
-use rustyline::completion::{Completer, extract_word};
 use std::path::PathBuf;
 
 pub struct ReleaseCompleter<'v> {

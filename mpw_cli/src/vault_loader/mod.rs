@@ -1,14 +1,15 @@
 mod add;
+mod completers;
 mod handler;
 mod list;
 mod load;
 mod mv;
 mod remove;
-mod completers;
 
 use crate::command_processor::CommandProcessor;
 use crate::config::get_config_path;
 use crate::print_if_error;
+use crate::vault_loader::completers::CompleterImpl;
 use crate::vault_processor::VaultProcessor;
 use add::Add;
 use clap::{Parser, Subcommand};
@@ -18,12 +19,11 @@ use load::Load;
 use mpw_core::path_manager::PathManager;
 use mv::Move;
 use remove::Remove;
-use rustyline::Context;
 use rustyline::completion::Completer;
+use rustyline::Context;
 use secure_string::SecureString;
 use std::fmt::{Display, Formatter};
 use std::io::Write;
-use crate::vault_loader::completers::CompleterImpl;
 
 pub enum LoaderState {
     Select,

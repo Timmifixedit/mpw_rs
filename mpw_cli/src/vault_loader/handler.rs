@@ -1,6 +1,6 @@
-use secure_string::SecureString;
-use mpw_core::path_manager::PathManager;
 use crate::vault_loader::LoaderState;
+use mpw_core::path_manager::PathManager;
+use secure_string::SecureString;
 
 pub type SecretHandler = Box<dyn FnOnce(SecureString) -> (LoaderState, Followup)>;
 

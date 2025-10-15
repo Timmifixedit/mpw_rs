@@ -26,8 +26,8 @@ use lock::Lock;
 use mpw_core::vault::Vault;
 use mv::Move;
 use remove::Remove;
-use rustyline::Context;
 use rustyline::completion::Completer;
+use rustyline::Context;
 use secure_release::{Release, Secure};
 use secure_string::SecureString;
 

@@ -1,5 +1,5 @@
-use rustyline::Context;
 use rustyline::completion::Completer;
+use rustyline::Context;
 
 pub struct FilenameCompleter(rustyline::completion::FilenameCompleter);
 

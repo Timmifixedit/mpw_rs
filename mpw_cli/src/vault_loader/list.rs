@@ -1,7 +1,7 @@
-use clap::Args;
-use mpw_core::path_manager::PathManager;
 use crate::vault_loader::handler::{Followup, Handler};
 use crate::vault_loader::LoaderState;
+use clap::Args;
+use mpw_core::path_manager::PathManager;
 
 #[derive(Debug, Args)]
 #[command(about = "list known vaults", long_about = None)]

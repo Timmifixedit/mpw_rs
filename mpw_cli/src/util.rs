@@ -52,9 +52,9 @@ pub fn current_arg_idx(pos: usize, line: &str) -> usize {
     res
 }
 
+#[cfg(test)]
 mod test {
-    use crate::util::current_arg_idx;
-
+    use super::*;
     #[test]
     fn test_get_arg_index() {
         assert_eq!(current_arg_idx(7, " test one two"), 1);

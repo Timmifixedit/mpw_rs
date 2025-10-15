@@ -1,12 +1,12 @@
 use crate::file_name_completer::FilenameCompleter;
-use crate::vault_loader::LoaderState;
 use crate::vault_loader::handler::{Followup, Handler};
+use crate::vault_loader::LoaderState;
 use crate::vault_processor::VaultProcessor;
 use clap::Args;
 use mpw_core::path_manager::PathManager;
 use mpw_core::vault::{Vault, VaultError};
+use rustyline::completion::{extract_word, Completer};
 use rustyline::Context;
-use rustyline::completion::{Completer, extract_word};
 use std::path::{Path, PathBuf};
 
 pub struct LoadCompleter<'e> {

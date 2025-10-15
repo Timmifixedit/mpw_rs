@@ -1,6 +1,6 @@
-use crate::vault_processor::VaultState;
 use crate::vault_processor::enc_dec::print_error;
 use crate::vault_processor::handler::{Followup, Handler, Verbosity};
+use crate::vault_processor::VaultState;
 use arboard::Clipboard;
 use clap::Args;
 use mpw_core::error::MpwError;

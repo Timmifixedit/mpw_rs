@@ -1,11 +1,11 @@
 use crate::print_if_error;
 use crate::util::current_arg_idx;
-use crate::vault_loader::LoaderState;
 use crate::vault_loader::handler::{Followup, Handler};
+use crate::vault_loader::LoaderState;
 use clap::Args;
 use mpw_core::path_manager::{PathManager, PathManagerError};
-use rustyline::Context;
 use rustyline::completion::Completer;
+use rustyline::Context;
 
 pub struct MoveCompleter<'e> {
     entries: &'e PathManager,

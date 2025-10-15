@@ -1,12 +1,12 @@
 use crate::print_if_error;
 use crate::util::current_arg_idx;
 use crate::vault_processor::handler::{Followup, Handler};
-use crate::vault_processor::{VaultState, util};
+use crate::vault_processor::{util, VaultState};
 use arboard::Clipboard;
 use clap::Args;
 use mpw_core::vault::Vault;
-use rustyline::Context;
 use rustyline::completion::Completer;
+use rustyline::Context;
 
 pub struct MoveCompleter<'v> {
     vault: &'v Vault,

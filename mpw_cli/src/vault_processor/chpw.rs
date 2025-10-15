@@ -1,5 +1,5 @@
-use crate::vault_processor::VaultState;
 use crate::vault_processor::handler::{Followup, Handler};
+use crate::vault_processor::VaultState;
 use arboard::Clipboard;
 use clap::Args;
 use mpw_core::vault::Vault;

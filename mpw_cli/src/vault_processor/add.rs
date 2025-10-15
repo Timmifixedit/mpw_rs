@@ -1,10 +1,10 @@
 use crate::vault_processor::handler::{Followup, Handler};
-use crate::vault_processor::{VaultState, util};
+use crate::vault_processor::{util, VaultState};
 use arboard::Clipboard;
 use clap::Args;
 use mpw_core::vault;
 use mpw_core::vault::{Vault, VaultError};
-use rustyline::completion::{Completer, extract_word};
+use rustyline::completion::{extract_word, Completer};
 use std::num::NonZeroU32;
 
 pub struct AddCompleter<'v> {

@@ -1,16 +1,16 @@
 mod command_processor;
-mod vault_processor;
-mod vault_loader;
 mod config;
-mod util;
 mod file_name_completer;
+mod util;
+mod vault_loader;
+mod vault_processor;
 
-use std::cell::RefCell;
 use crate::command_processor::CommandProcessor;
 use crate::vault_loader::VaultLoader;
 use mpw_core::vault::VaultError;
-use rustyline::{Context, DefaultEditor, Editor};
 use rustyline::error::ReadlineError;
+use rustyline::{Context, Editor};
+use std::cell::RefCell;
 use std::process::exit;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -35,7 +35,7 @@ struct MyHelper {
     pub completer: Rc<RefCell<VaultLoader>>,
 }
 
-impl MyHelper{
+impl MyHelper {
     pub fn new(completer: Rc<RefCell<VaultLoader>>) -> Self {
         Self { completer }
     }
@@ -43,7 +43,12 @@ impl MyHelper{
 
 impl rustyline::completion::Completer for MyHelper {
     type Candidate = String;
-    fn complete(&self, line: &str, pos: usize, ctx: &Context<'_>) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
+    fn complete(
+        &self,
+        line: &str,
+        pos: usize,
+        ctx: &Context<'_>,
+    ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
         self.completer.borrow().complete(line, pos, ctx)
     }
 }
@@ -60,7 +65,7 @@ impl rustyline::Helper for MyHelper {}
 fn run() -> Result<(), AppError> {
     let vl = Rc::new(RefCell::new(VaultLoader::new()));
     let helper = MyHelper::new(vl.clone());
-    let mut rl = Editor::new().expect("Failed to create readline editor");//DefaultEditor::new().expect("Failed to create readline editor");
+    let mut rl = Editor::new().expect("Failed to create readline editor");
     rl.set_helper(Some(helper));
 
     // Set up Ctrl-C handler
@@ -72,7 +77,6 @@ fn run() -> Result<(), AppError> {
     })
     .expect("Error setting Ctrl-C handler");
     loop {
-
         // Reset the interrupted flag at the start of each loop
         interrupted.store(false, Ordering::SeqCst);
 

@@ -1,9 +1,9 @@
-use crate::vault_loader::LoaderState;
 use crate::vault_loader::handler::{Followup, Handler};
+use crate::vault_loader::LoaderState;
 use clap::Args;
 use mpw_core::path_manager::PathManager;
+use rustyline::completion::{extract_word, Completer};
 use rustyline::Context;
-use rustyline::completion::{Completer, extract_word};
 
 pub struct RemoveCompleter<'e> {
     entries: &'e PathManager,
