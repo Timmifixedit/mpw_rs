@@ -1,6 +1,7 @@
 mod command_processor;
 mod config;
 mod file_name_completer;
+mod logo;
 mod util;
 mod vault_loader;
 mod vault_processor;
@@ -8,6 +9,7 @@ mod vault_processor;
 use crate::command_processor::CommandProcessor;
 use crate::vault_loader::VaultLoader;
 use mpw_core::vault::VaultError;
+use owo_colors::OwoColorize;
 use rustyline::error::ReadlineError;
 use rustyline::{Context, Editor};
 use std::cell::RefCell;
@@ -16,15 +18,6 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use thiserror;
-
-const LOGO: &'static str = r"
-____    ____  _______  ____      ____         ______  _____     _____
-|_   \  /   _||_   __ \|_  _|    |_  _|      .' ___  ||_   _|   |_   _|
-  |   \/   |    | |__) | \ \  /\  / /______ / .'   \_|  | |       | |
-  | |\  /| |    |  ___/   \ \/  \/ /|______|| |         | |   _   | |
- _| |_\/_| |_  _| |_       \  /\  /         \ `.___.'\ _| |__/ | _| |_
-|_____||_____||_____|       \/  \/           `.____ .'|________||_____|
-                                                                        ";
 
 #[derive(thiserror::Error, Debug)]
 enum AppError {
@@ -72,7 +65,7 @@ impl rustyline::hint::Hinter for MyHelper {
 impl rustyline::Helper for MyHelper {}
 
 fn run() -> Result<(), AppError> {
-    println!("\n{}\n", LOGO);
+    logo::print_logo();
     let vl = Rc::new(RefCell::new(VaultLoader::new()));
     let helper = MyHelper::new(vl.clone());
     let mut rl = Editor::new().expect("Failed to create readline editor");
@@ -85,7 +78,7 @@ fn run() -> Result<(), AppError> {
     ctrlc::set_handler(move || {
         interrupted_clone.store(true, Ordering::SeqCst);
     })
-        .expect("Error setting Ctrl-C handler");
+    .expect("Error setting Ctrl-C handler");
     loop {
         // Reset the interrupted flag at the start of each loop
         interrupted.store(false, Ordering::SeqCst);
@@ -95,12 +88,12 @@ fn run() -> Result<(), AppError> {
         } else if vl.borrow().require_raw() {
             "... "
         } else {
-            "> "
+            "» "
         };
 
         let readline = if vl.borrow().require_secret() {
             // Use rpassword for secret input (masked)
-            print!("{}", prompt);
+            print!("{}", prompt.magenta());
             use std::io::Write;
             std::io::stdout().flush().expect("Failed to flush stdout");
 
@@ -114,7 +107,7 @@ fn run() -> Result<(), AppError> {
             }
         } else {
             // Use rustyline for regular input
-            rl.readline(prompt)
+            rl.readline(&prompt.magenta().to_string())
         };
 
         match readline {
