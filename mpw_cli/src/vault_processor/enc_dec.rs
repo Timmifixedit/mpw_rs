@@ -1,24 +1,27 @@
 use crate::file_name_completer::FilenameCompleter;
+use crate::vault_processor::VaultState;
 use crate::vault_processor::handler::{Followup, Handler, Verbosity};
 use crate::vault_processor::util::list_candidates;
-use crate::vault_processor::VaultState;
 use arboard::Clipboard;
 use clap::Args;
+use mpw_core::vault::FILE_EXTENSION as FE;
 use mpw_core::vault::{Vault, VaultError, VaultErrorStack};
-use rustyline::completion::{extract_word, Completer};
 use rustyline::Context;
-use std::path::Path;
+use rustyline::completion::{Completer, extract_word};
+use std::path::{Path, PathBuf};
 
 pub struct EncDecCompleter<'v> {
     vault: &'v Vault,
     file_completer: FilenameCompleter,
+    decryption: bool,
 }
 
 impl<'v> EncDecCompleter<'v> {
-    pub fn new(vault: &'v Vault) -> Self {
+    pub fn new(vault: &'v Vault, decryption: bool) -> Self {
         Self {
             vault,
             file_completer: FilenameCompleter::new(),
+            decryption,
         }
     }
 }
@@ -36,7 +39,16 @@ impl<'v> Completer for EncDecCompleter<'v> {
             let candidates = list_candidates(self.vault, Some(word), true)?;
             return Ok((start, candidates));
         }
-        self.file_completer.complete(line, pos, ctx)
+        self.file_completer.complete(line, pos, ctx).map(|(s, c)| {
+            (
+                s,
+                c.into_iter()
+                    .filter(|s| {
+                        self.decryption == PathBuf::from(s).extension().is_some_and(|e| e == FE)
+                    })
+                    .collect(),
+            )
+        })
     }
 }
 

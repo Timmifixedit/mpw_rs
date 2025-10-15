@@ -15,7 +15,7 @@ const PW_PATH: &'static str = "Passwords";
 const VAULT_FILE: &'static str = constcat::concat!("Vault", ".", VLT_EXTENSION);
 const PW_EXTENSION: &'static str = "pwEnc";
 const LOGIN_EXTENSION: &'static str = "lgEnc";
-const FILE_EXTENSION: &'static str = "enc";
+pub const FILE_EXTENSION: &'static str = "enc";
 const FILE_LIST: &'static str = constcat::concat!("EncryptedFiles", ".", VLT_EXTENSION);
 
 #[derive(thiserror::Error, Debug)]
