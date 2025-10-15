@@ -1,4 +1,5 @@
 use crate::print_if_error;
+use crate::util::current_arg_idx;
 use crate::vault_processor::handler::{Followup, Handler};
 use crate::vault_processor::{VaultState, util};
 use arboard::Clipboard;
@@ -28,13 +29,8 @@ impl<'v> Completer for MoveCompleter<'v> {
     ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
         let (start, word) =
             rustyline::completion::extract_word(line, pos, None, |c| c.is_whitespace());
-        let words = line
-            .split_whitespace()
-            .skip(1)
-            .filter(|s| !s.starts_with('-'))
-            .collect::<Vec<_>>();
-        let word_idx = words.iter().position(|s| s.starts_with(word));
-        if words.len() > 0 && (word.is_empty() || word_idx.is_none_or(|idx| idx > 0)) {
+        if current_arg_idx(pos, line) > 1 {
+            // first word is command
             return Ok((start, vec![]));
         }
 
