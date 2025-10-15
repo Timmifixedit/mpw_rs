@@ -71,7 +71,11 @@ impl Handler for Add {
             });
         } else {
             if let Some(path) = self.path {
-                print_if_error!(entries.add(self.name, path, self.default));
+                if !path.is_dir() {
+                    println!("Path is not a directory");
+                } else {
+                    print_if_error!(entries.add(self.name, path, self.default));
+                }
             } else {
                 println!("Please specify a path to add.");
             };
