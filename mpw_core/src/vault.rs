@@ -352,7 +352,8 @@ impl Vault {
                     .file_stem()
                     .unwrap()
                     .to_string_lossy()
-                    .contains(search.unwrap_or_default())
+                    .to_lowercase()
+                    .contains(&search.unwrap_or_default().to_lowercase())
             {
                 ret.push(path.file_stem().unwrap().to_string_lossy().to_string());
             }
