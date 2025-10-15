@@ -1,9 +1,51 @@
+use crate::file_name_completer::FilenameCompleter;
 use crate::print_if_error;
-use crate::vault_loader::handler::{Followup, Handler};
+use crate::util::current_arg_idx;
 use crate::vault_loader::LoaderState;
+use crate::vault_loader::handler::{Followup, Handler};
 use clap::Args;
 use mpw_core::path_manager::PathManager;
-use std::path::PathBuf;
+use rustyline::Context;
+use rustyline::completion::Completer;
+use std::path::{Path, PathBuf};
+
+pub struct AddCompleter {
+    file_completer: FilenameCompleter,
+}
+
+impl AddCompleter {
+    pub fn new() -> Self {
+        Self {
+            file_completer: FilenameCompleter::new(),
+        }
+    }
+}
+
+impl Completer for AddCompleter {
+    type Candidate = String;
+    fn complete(
+        &self,
+        line: &str,
+        pos: usize,
+        ctx: &Context<'_>,
+    ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
+        if current_arg_idx(pos, line) < 2 {
+            return Ok((0, vec![]));
+        }
+
+        self.file_completer
+            .complete(line, pos, ctx)
+            .map(|(size, candidates)| {
+                (
+                    size,
+                    candidates
+                        .into_iter()
+                        .filter(|c| Path::new(c).is_dir())
+                        .collect::<Vec<_>>(),
+                )
+            })
+    }
+}
 
 #[derive(Debug, Args)]
 #[command(about = "add a new or existing vault", long_about = None)]
