@@ -1,5 +1,6 @@
-use rustyline::completion::Completer;
 use rustyline::Context;
+use rustyline::completion::Completer;
+use shellexpand::tilde;
 
 pub struct FilenameCompleter(rustyline::completion::FilenameCompleter);
 
@@ -18,8 +19,13 @@ impl Completer for FilenameCompleter {
         pos: usize,
         ctx: &Context<'_>,
     ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
-        self.0
-            .complete(line, pos, ctx)
-            .map(|(s, c)| (s, c.into_iter().map(|p| p.replacement).collect()))
+        self.0.complete(line, pos, ctx).map(|(s, c)| {
+            (
+                s,
+                c.into_iter()
+                    .map(|p| tilde(&p.replacement).to_string())
+                    .collect(),
+            )
+        })
     }
 }
