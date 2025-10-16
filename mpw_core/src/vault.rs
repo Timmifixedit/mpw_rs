@@ -1,7 +1,7 @@
 use crate::cryptography;
 use crate::error::MpwError;
 use crate::event::MessageEvent;
-use crate::path_manager::{CreationError, PathManager, PathManagerError};
+use crate::path_manager::{CreationError, PathManager, PathManagerError, Search};
 use openssl::rand::rand_bytes;
 use secure_string::SecureString;
 use std::fmt::{Display, Formatter};
@@ -336,7 +336,7 @@ impl Vault {
         Ok(())
     }
 
-    pub fn list_passwords(&self, search: Option<&str>) -> Result<Vec<String>, VaultError> {
+    pub fn list_passwords(&self, search: Search) -> Result<Vec<String>, VaultError> {
         if self.is_locked() {
             return VaultError::VaultLocked.into();
         }
@@ -348,12 +348,7 @@ impl Vault {
             if path.is_file()
                 && path.file_stem().is_some()
                 && path.extension().unwrap_or_default() == PW_EXTENSION
-                && path
-                    .file_stem()
-                    .unwrap()
-                    .to_string_lossy()
-                    .to_lowercase()
-                    .contains(&search.unwrap_or_default().to_lowercase())
+                && search.includes(&path.file_stem().unwrap().to_string_lossy().to_lowercase())
             {
                 ret.push(path.file_stem().unwrap().to_string_lossy().to_string());
             }
@@ -362,7 +357,7 @@ impl Vault {
         Ok(ret)
     }
 
-    pub fn list_files(&self, show_path: bool, search_string: Option<&str>) -> Vec<String> {
+    pub fn list_files(&self, show_path: bool, search_string: Search) -> Vec<String> {
         self.file_list.list_entries(show_path, search_string, false)
     }
 

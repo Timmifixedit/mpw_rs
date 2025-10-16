@@ -4,6 +4,7 @@ use crate::vault_processor::handler::{Followup, Handler, Verbosity};
 use crate::vault_processor::util::list_candidates;
 use arboard::Clipboard;
 use clap::Args;
+use mpw_core::path_manager::Search;
 use mpw_core::vault::FILE_EXTENSION as FE;
 use mpw_core::vault::{Vault, VaultError, VaultErrorStack};
 use rustyline::Context;
@@ -36,7 +37,7 @@ impl<'v> Completer for EncDecCompleter<'v> {
     ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
         let (start, word) = extract_word(line, pos, None, |c| c.is_whitespace());
         if !line.split_whitespace().any(|s| s == "-p" || s == "--path") {
-            let candidates = list_candidates(self.vault, Some(word), true)?;
+            let candidates = list_candidates(self.vault, Search::StartsWith(word), true)?;
             return Ok((start, candidates));
         }
         self.file_completer.complete(line, pos, ctx).map(|(s, c)| {

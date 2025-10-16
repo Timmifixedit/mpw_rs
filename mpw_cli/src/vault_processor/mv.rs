@@ -1,12 +1,13 @@
 use crate::print_if_error;
 use crate::util::current_arg_idx;
 use crate::vault_processor::handler::{Followup, Handler};
-use crate::vault_processor::{util, VaultState};
+use crate::vault_processor::{VaultState, util};
 use arboard::Clipboard;
 use clap::Args;
+use mpw_core::path_manager::Search;
 use mpw_core::vault::Vault;
-use rustyline::completion::Completer;
 use rustyline::Context;
+use rustyline::completion::Completer;
 
 pub struct MoveCompleter<'v> {
     vault: &'v Vault,
@@ -35,7 +36,7 @@ impl<'v> Completer for MoveCompleter<'v> {
         }
 
         let search_files = line.split_whitespace().any(|s| s == "-f" || s == "--file");
-        let candidates = util::list_candidates(self.vault, Some(word), search_files)?;
+        let candidates = util::list_candidates(self.vault, Search::StartsWith(word), search_files)?;
         Ok((start, candidates))
     }
 }

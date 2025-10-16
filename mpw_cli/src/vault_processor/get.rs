@@ -1,10 +1,11 @@
 use crate::vault_processor::handler::{Followup, Handler};
-use crate::vault_processor::{util, VaultState};
+use crate::vault_processor::{VaultState, util};
 use arboard::Clipboard;
 use clap::Args;
+use mpw_core::path_manager::Search;
 use mpw_core::vault::Vault;
-use rustyline::completion::{extract_word, Completer};
 use rustyline::Context;
+use rustyline::completion::{Completer, extract_word};
 
 pub struct GetCompleter<'v> {
     vault: &'v Vault,
@@ -25,7 +26,7 @@ impl<'v> Completer for GetCompleter<'v> {
         _: &Context<'_>,
     ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
         let (start, word) = extract_word(line, pos, None, |c| c.is_whitespace());
-        let candidates = util::list_candidates(self.vault, Some(word), false)?;
+        let candidates = util::list_candidates(self.vault, Search::StartsWith(word), false)?;
         Ok((start, candidates))
     }
 }

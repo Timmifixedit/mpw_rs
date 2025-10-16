@@ -1,10 +1,11 @@
 use crate::vault_processor::handler::{Followup, Handler};
-use crate::vault_processor::{util, VaultState};
+use crate::vault_processor::{VaultState, util};
 use arboard::Clipboard;
 use clap::Args;
+use mpw_core::path_manager::Search;
 use mpw_core::vault;
 use mpw_core::vault::{Vault, VaultError};
-use rustyline::completion::{extract_word, Completer};
+use rustyline::completion::{Completer, extract_word};
 use std::num::NonZeroU32;
 
 pub struct AddCompleter<'v> {
@@ -33,7 +34,7 @@ impl<'v> Completer for AddCompleter<'v> {
             return Ok((start, vec![]));
         }
 
-        let candidates = util::list_candidates(self.vault, Some(word), false)?;
+        let candidates = util::list_candidates(self.vault, Search::StartsWith(word), false)?;
         Ok((start, candidates))
     }
 }
@@ -60,7 +61,7 @@ pub struct Add {
 impl Handler for Add {
     fn handle(self, vault: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup) {
         let result = (|| {
-            let exists = vault.list_passwords(None)?.contains(&self.name);
+            let exists = vault.list_passwords(Search::None)?.contains(&self.name);
             if exists && !self.overwrite {
                 return Err(VaultError::AlreadyExists(self.name.clone()));
             }

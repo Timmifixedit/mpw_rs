@@ -1,10 +1,11 @@
 use mpw_core::vault::Vault;
 use mpw_core::vault::VaultError;
 use rustyline::error::ReadlineError;
+use mpw_core::path_manager::Search;
 
 pub fn list_candidates(
     vault: &Vault,
-    search: Option<&str>,
+    search: Search,
     files: bool,
 ) -> Result<Vec<String>, ReadlineError> {
     if files {

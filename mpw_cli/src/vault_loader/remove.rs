@@ -1,9 +1,10 @@
-use crate::vault_loader::handler::{Followup, Handler};
 use crate::vault_loader::LoaderState;
+use crate::vault_loader::handler::{Followup, Handler};
 use clap::Args;
 use mpw_core::path_manager::PathManager;
-use rustyline::completion::{extract_word, Completer};
+use mpw_core::path_manager::Search;
 use rustyline::Context;
+use rustyline::completion::{Completer, extract_word};
 
 pub struct RemoveCompleter<'e> {
     entries: &'e PathManager,
@@ -19,7 +20,9 @@ impl<'e> Completer for RemoveCompleter<'e> {
         _: &Context<'_>,
     ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
         let (start, word) = extract_word(line, pos, None, |c| c.is_whitespace());
-        let candidates = self.entries.list_entries(false, Some(word), false);
+        let candidates = self
+            .entries
+            .list_entries(false, Search::StartsWith(word), false);
         Ok((start, candidates))
     }
 }

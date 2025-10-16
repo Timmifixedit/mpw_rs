@@ -37,6 +37,23 @@ pub struct PathManager {
     default: Option<String>,
 }
 
+#[derive(Debug)]
+pub enum Search<'a> {
+    None,
+    StartsWith(&'a str),
+    Contains(&'a str),
+}
+
+impl<'a> Search<'a> {
+    pub fn includes(&self, s: &str) -> bool {
+        match self {
+            Search::None => true,
+            Search::StartsWith(search) => s.starts_with(search),
+            Search::Contains(search) => s.contains(search),
+        }
+    }
+}
+
 impl serde::Serialize for PathManager {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -145,17 +162,10 @@ impl PathManager {
     /// * `show_val`: if true, the values are shown
     /// # Returns
     /// * vector string with all entries
-    pub fn list_entries(
-        &self,
-        show_val: bool,
-        search_string: Option<&str>,
-        show_default: bool,
-    ) -> Vec<String> {
+    pub fn list_entries(&self, show_val: bool, search: Search, show_default: bool) -> Vec<String> {
         let mut entries = Vec::with_capacity(self.entries.len());
         for (k, v) in &self.entries {
-            if let Some(s) = search_string
-                && !k.contains(s)
-            {
+            if !search.includes(k) {
                 continue;
             }
 
