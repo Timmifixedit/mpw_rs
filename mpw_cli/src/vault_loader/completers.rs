@@ -27,7 +27,7 @@ impl<'e> Completer for CompleterImpl<'e> {
         ctx: &Context<'_>,
     ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
         match get_command(line) {
-            Some("add") => add::AddCompleter::new().complete(line, pos, ctx),
+            Some("add") => add::AddCompleter::new(self.entries).complete(line, pos, ctx),
             Some("load") => load::LoadCompleter::new(self.entries).complete(line, pos, ctx),
             Some("rm") => remove::RemoveCompleter::new(self.entries).complete(line, pos, ctx),
             Some("mv") => mv::MoveCompleter::new(self.entries).complete(line, pos, ctx),
