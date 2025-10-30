@@ -264,11 +264,12 @@ impl PathManager {
             return Err(PathManagerError::EntryExists(key.to_string()));
         }
 
-        if !value.exists() {
+        let abs_path = std::fs::canonicalize(&value);
+        if !value.exists() || abs_path.is_err() {
             return Err(PathManagerError::InvalidPath);
         }
 
-        self.entries.insert(key.clone(), value);
+        self.entries.insert(key.clone(), abs_path.unwrap());
         if default {
             self.default = Some(key);
         }
@@ -288,11 +289,12 @@ impl PathManager {
             .entries
             .get_mut(key)
             .ok_or(PathManagerError::EntryNotFound(key.to_string()))?;
-        if !value.exists() {
+        let abs_path = std::fs::canonicalize(&value);
+        if !value.exists() || abs_path.is_err() {
             return Err(PathManagerError::InvalidPath);
         }
 
-        *entry = value;
+        *entry = abs_path.unwrap();
         Ok(())
     }
 
