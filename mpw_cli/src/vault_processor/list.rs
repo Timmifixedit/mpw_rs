@@ -20,7 +20,7 @@ pub struct List {
 
 impl Handler for List {
     fn handle(self, vault: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup) {
-        let entries;
+        let mut entries;
         let search = self
             .search
             .as_deref()
@@ -34,6 +34,7 @@ impl Handler for List {
             })
         }
 
+        entries.sort();
         for entry in entries {
             println!("{}", entry);
         }
