@@ -1,6 +1,6 @@
 use crate::vault_processor::handler::{Followup, Handler};
 use crate::vault_processor::{VaultState, util};
-use arboard::Clipboard;
+use arboard::{Clipboard, LinuxClipboardKind, SetExtLinux};
 use clap::Args;
 use mpw_core::path_manager::Search;
 use mpw_core::vault::Vault;
@@ -46,16 +46,26 @@ impl Handler for Get {
         vault.retrieve_password(&self.name).map_or_else(
             |e| println!("{}", e.to_string()),
             |(pw, login)| {
-                if let Some(login) = login {
-                    println!("{}", login);
-                }
                 if self.show {
+                    if let Some(login) = login {
+                        println!("{}", login);
+                    }
                     println!("{}", pw.unsecure());
                 } else {
-                    if let Err(e) = clipboard.set_text(pw.unsecure()) {
+                    let cb = clipboard.set().clipboard(LinuxClipboardKind::Clipboard);
+                    if let Err(e) = cb.text(pw.unsecure()) {
                         eprintln!("Error copying password to clipboard: {}", e.to_string());
                     } else {
                         println!("Password copied to clipboard");
+                    }
+
+                    if let Some(login) = login {
+                        let cb = clipboard.set().clipboard(LinuxClipboardKind::Primary);
+                        if let Err(e) = cb.text(login) {
+                            eprintln!("Error copying login to primary: {}", e.to_string());
+                        } else {
+                            println!("Login copied to primary");
+                        }
                     }
                 }
             },
