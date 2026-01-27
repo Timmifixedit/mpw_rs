@@ -45,7 +45,9 @@ impl<'v> Completer for EncDecCompleter<'v> {
                 s,
                 c.into_iter()
                     .filter(|s| {
-                        self.decryption == PathBuf::from(s).extension().is_some_and(|e| e == FE)
+                        self.decryption
+                            == (PathBuf::from(s).is_dir()
+                                || PathBuf::from(s).extension().is_some_and(|e| e == FE))
                     })
                     .collect(),
             )
