@@ -1,6 +1,5 @@
 use crate::cryptography;
 use crate::error::MpwError;
-use crate::event::MessageEvent;
 use crate::path_manager::{CreationError, PathManager, PathManagerError, Search};
 use openssl::rand::rand_bytes;
 use secure_string::SecureString;
@@ -173,7 +172,6 @@ pub struct Vault {
     working_dir: PathBuf,
     master_key: Option<cryptography::AesKey>,
     file_list: PathManager,
-    pub warn: MessageEvent,
 }
 
 impl Vault {
@@ -219,7 +217,6 @@ impl Vault {
             working_dir,
             master_key: None,
             file_list: files,
-            warn: MessageEvent::new(),
         })
     }
 
