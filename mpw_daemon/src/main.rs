@@ -1,3 +1,4 @@
+mod messages;
 mod request_handler;
 
 use clap::Parser;
