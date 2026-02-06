@@ -1,6 +1,6 @@
 [workspace]
 members = [
     "mpw_core",
-    "mpw_cli", "mpw_daemon",
+    "mpw_cli", "mpw_daemon", "mpw_client",
 ]
 resolver = "2"

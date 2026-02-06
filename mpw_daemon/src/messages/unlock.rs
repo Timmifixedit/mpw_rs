@@ -1,11 +1,13 @@
 use std::sync::Mutex;
+use clap::{Args};
 use secure_string::SecureString;
 use serde::{Deserialize, Serialize};
 use mpw_core::vault::Vault;
 use crate::messages::{Query, QueryResult};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Args)]
 pub struct Unlock {
+    #[arg(required = true)]
     pub master_pw: SecureString,
 }
 

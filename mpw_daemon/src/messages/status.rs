@@ -3,8 +3,9 @@ use mpw_core::vault::Vault;
 use secure_string::SecureString;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
+use clap::Args;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Args)]
 pub struct Status {}
 
 #[derive(Debug, Serialize, Deserialize)]
