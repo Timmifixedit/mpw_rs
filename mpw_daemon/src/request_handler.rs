@@ -1,4 +1,4 @@
-use crate::messages::{Message, QueryResult, parse};
+use crate::messages::{Message, MessageType, Query, QueryResult, status, unlock};
 use mpw_core::vault::Vault;
 use std::io::{BufRead, BufReader, Write};
 use std::net::Shutdown;
@@ -54,7 +54,16 @@ impl RequestHandler {
 
     fn handle_message(&self, data: &str) -> QueryResult<String> {
         let msg: Message = serde_json::from_str(data)?;
-        let query = parse(&msg)?;
-        Ok(format!("{}\n", query.generate_response(&self.vault)?))
+        let response = match msg.message_type {
+            MessageType::Status => {
+                let query: status::Status = serde_json::from_str(msg.payload.unsecure())?;
+                query.generate_response(&self.vault)
+            }
+            MessageType::Unlock => {
+                let query: unlock::Unlock = serde_json::from_str(msg.payload.unsecure())?;
+                query.generate_response(&self.vault)
+            }
+        }?;
+        Ok(format!("{response}\n"))
     }
 }

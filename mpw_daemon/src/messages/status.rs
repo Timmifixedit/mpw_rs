@@ -12,7 +12,7 @@ pub struct StatusReply {
 }
 
 impl Query for Status {
-    fn generate_response(&self, vault: &Mutex<Vault>) -> QueryResult<String> {
+    fn generate_response(self, vault: &Mutex<Vault>) -> QueryResult<String> {
         let vault = vault.lock().expect("Something is seriously wrong");
         Ok(serde_json::ser::to_string(&StatusReply {
             locked: vault.is_locked(),
