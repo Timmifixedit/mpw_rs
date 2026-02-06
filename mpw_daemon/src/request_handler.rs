@@ -1,6 +1,6 @@
 use crate::messages::{Message, QueryResult, parse};
 use mpw_core::vault::Vault;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Write};
 use std::net::Shutdown;
 use std::os::unix::net::UnixStream;
 use std::sync::Mutex;
@@ -29,9 +29,16 @@ impl RequestHandler {
                 Ok(_) => match self.handle_message(&line) {
                     Ok(response) => {
                         println!("Response: {:?}", response);
+                        if let Err(e) = (&stream).write_all(response.as_bytes()) {
+                            eprintln!("Could not write to socket. {}", e);
+                        }
                     }
                     Err(e) => {
                         println!("Error: {:?}", e);
+                        if let Err(e) = (&stream).write_all(e.to_string().as_bytes()) {
+                            eprintln!("Could not write to socket. {}", e);
+                        }
+
                         if let Err(e) = stream.shutdown(Shutdown::Both) {
                             eprintln!("Error shutting down stream: {}", e);
                         }
@@ -48,6 +55,6 @@ impl RequestHandler {
     fn handle_message(&self, data: &str) -> QueryResult<String> {
         let msg: Message = serde_json::from_str(data)?;
         let query = parse(&msg)?;
-        Ok(query.generate_response(&self.vault)?)
+        Ok(format!("{}\n", query.generate_response(&self.vault)?))
     }
 }
