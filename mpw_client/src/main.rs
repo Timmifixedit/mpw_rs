@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use mpw_daemon::messages::{Message, MessageType};
+use mpw_daemon::messages::{Message, MessageType, Response};
 use secure_string::SecureString;
 use shellexpand::tilde;
 use std::io::{Read, Write};
@@ -51,7 +51,6 @@ generate_to_message!(
     Unlock => MessageType::Unlock,
 );
 
-
 fn send_message(msg: Message, stream: &mut UnixStream) {
     let data = SecureString::from(format!(
         "{}\n",
@@ -62,7 +61,6 @@ fn send_message(msg: Message, stream: &mut UnixStream) {
         exit(1);
     }
 }
-
 
 fn main() {
     let args = Args::parse();
@@ -87,10 +85,24 @@ fn main() {
         Err(e) => {
             eprintln!("Failed to read response: {}", e);
             exit(1);
-        }
-        Ok(_) => {
-            println!("{}", response);
-        }
+        },
+        _ => ()
     }
     let response = SecureString::from(response);
+    let response = match serde_json::from_str::<Response>(response.unsecure()) {
+        Ok(response) => response,
+        Err(err) => {
+            eprintln!("Error deserializing response: {err}");
+            exit(1);
+        }
+    };
+
+    match response {
+        Response::Ok(data) => {
+            println!("{}", data.unsecure())
+        }
+        Response::Err(err) => {
+            eprintln!("{}", err);
+        }
+    }
 }
