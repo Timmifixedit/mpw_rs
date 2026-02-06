@@ -1,5 +1,5 @@
 use mpw_core::vault::Vault;
-use mpw_daemon::messages::{Message, MessageType, Query, QueryResult, status, unlock};
+use mpw_daemon::messages::{Message, MessageType, Query, QueryResult, Response, status, unlock};
 use secure_string::SecureString;
 use std::io::{BufRead, BufReader, Write};
 use std::net::Shutdown;
@@ -28,14 +28,24 @@ impl RequestHandler {
             }
             Ok(_) => match self.handle_message(line.unsecure()) {
                 Ok(response) => {
+                    let response = Response::Ok(response);
                     println!("Response: {:?}", response);
-                    if let Err(e) = (&stream).write_all(response.unsecure().as_bytes()) {
+                    if let Err(e) = (&stream).write_all(
+                        serde_json::to_string(&response)
+                            .expect("This should never fail")
+                            .as_bytes(),
+                    ) {
                         eprintln!("Could not write to socket. {}", e);
                     }
                 }
                 Err(e) => {
                     println!("Error: {:?}", e);
-                    if let Err(e) = (&stream).write_all(e.to_string().as_bytes()) {
+                    let response = Response::Err(e.to_string());
+                    if let Err(e) = (&stream).write_all(
+                        serde_json::to_string(&response)
+                            .expect("This should never fail")
+                            .as_bytes(),
+                    ) {
                         eprintln!("Could not write to socket. {}", e);
                     }
                 }
