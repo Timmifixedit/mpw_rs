@@ -10,9 +10,9 @@ pub struct Unlock {
 }
 
 impl Query for Unlock {
-    fn generate_response(self, vault: &Mutex<Vault>) -> QueryResult<String> {
+    fn generate_response(self, vault: &Mutex<Vault>) -> QueryResult<SecureString> {
         let mut vault = vault.lock().expect("Something is seriously wrong");
         vault.unlock(self.master_pw)?;
-        Ok("Ok".to_string())
+        Ok("Ok".into())
     }
 }

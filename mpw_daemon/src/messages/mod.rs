@@ -30,5 +30,5 @@ pub struct Message {
 
 //Payload should be serializable (directly via serde, enforce trait) and have a generate_response method
 pub trait Query {
-    fn generate_response(self, vault: &Mutex<Vault>) -> QueryResult<String>;
+    fn generate_response(self, vault: &Mutex<Vault>) -> QueryResult<SecureString>;
 }
