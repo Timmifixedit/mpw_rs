@@ -1,5 +1,6 @@
-use crate::messages::{Message, MessageType, Query, QueryResult, status, unlock};
 use mpw_core::vault::Vault;
+use mpw_daemon::messages::{Message, MessageType, Query, QueryResult, status, unlock};
+use secure_string::SecureString;
 use std::io::{BufRead, BufReader, Write};
 use std::net::Shutdown;
 use std::os::unix::net::UnixStream;
@@ -19,40 +20,37 @@ impl RequestHandler {
     pub fn handle_stream(&self, stream: UnixStream) {
         let mut reader = BufReader::new(&stream);
         let mut line = String::new();
-        loop {
-            line.clear();
-            match reader.read_line(&mut line) {
-                Ok(0) => {
-                    println!("Connection closed.");
-                    break;
-                }
-                Ok(_) => match self.handle_message(&line) {
-                    Ok(response) => {
-                        println!("Response: {:?}", response);
-                        if let Err(e) = (&stream).write_all(response.as_bytes()) {
-                            eprintln!("Could not write to socket. {}", e);
-                        }
-                    }
-                    Err(e) => {
-                        println!("Error: {:?}", e);
-                        if let Err(e) = (&stream).write_all(e.to_string().as_bytes()) {
-                            eprintln!("Could not write to socket. {}", e);
-                        }
-
-                        if let Err(e) = stream.shutdown(Shutdown::Both) {
-                            eprintln!("Error shutting down stream: {}", e);
-                        }
-                    }
-                },
-                Err(err) => {
-                    eprintln!("Error reading from stream: {}", err);
-                    break;
-                }
+        let result = reader.read_line(&mut line);
+        let line = SecureString::from(line);
+        match result {
+            Ok(0) => {
+                println!("Connection closed by client.");
             }
+            Ok(_) => match self.handle_message(line.unsecure()) {
+                Ok(response) => {
+                    println!("Response: {:?}", response);
+                    if let Err(e) = (&stream).write_all(response.unsecure().as_bytes()) {
+                        eprintln!("Could not write to socket. {}", e);
+                    }
+                }
+                Err(e) => {
+                    println!("Error: {:?}", e);
+                    if let Err(e) = (&stream).write_all(e.to_string().as_bytes()) {
+                        eprintln!("Could not write to socket. {}", e);
+                    }
+                }
+            },
+            Err(err) => {
+                eprintln!("Error reading from stream: {}", err);
+            }
+        }
+
+        if let Err(e) = stream.shutdown(Shutdown::Both) {
+            eprintln!("Error shutting down stream: {}", e);
         }
     }
 
-    fn handle_message(&self, data: &str) -> QueryResult<String> {
+    fn handle_message(&self, data: &str) -> QueryResult<SecureString> {
         let msg: Message = serde_json::from_str(data)?;
         let response = match msg.message_type {
             MessageType::Status => {
@@ -64,6 +62,6 @@ impl RequestHandler {
                 query.generate_response(&self.vault)
             }
         }?;
-        Ok(format!("{response}\n"))
+        Ok(format!("{}\n", response.into_unsecure()).into())
     }
 }
