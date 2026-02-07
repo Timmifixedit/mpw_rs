@@ -1,6 +1,6 @@
 use mpw_core::vault::Vault;
 use mpw_daemon::messages::{
-    Message, MessageType, Query, QueryResult, Response, get, status, unlock,
+    Message, MessageType, Query, QueryResult, Response, get, list, status, unlock,
 };
 use secure_string::SecureString;
 use std::io::{BufRead, BufReader, Write};
@@ -32,6 +32,7 @@ generate_handlers! (
     Unlock => unlock::Unlock,
     Lock => unlock::Lock,
     Get => get::Get,
+    List => list::List,
 );
 
 impl RequestHandler {

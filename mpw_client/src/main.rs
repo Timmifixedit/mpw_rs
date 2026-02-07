@@ -16,6 +16,8 @@ enum Query {
     Lock(mpw_daemon::messages::unlock::Lock),
     #[command(name = "get")]
     Get(mpw_daemon::messages::get::Get),
+    #[command(name = "list")]
+    List(mpw_daemon::messages::list::List),
 }
 
 #[derive(Debug, Parser)]
@@ -55,6 +57,7 @@ generate_to_message!(
     Unlock => MessageType::Unlock,
     Lock => MessageType::Lock,
     Get => MessageType::Get,
+    List => MessageType::List,
 );
 
 fn send_message(msg: Message, stream: &mut UnixStream) {
