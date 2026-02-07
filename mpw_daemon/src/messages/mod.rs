@@ -5,6 +5,7 @@ use std::sync::Mutex;
 
 pub mod status;
 pub mod unlock;
+pub mod get;
 
 #[derive(thiserror::Error, Debug)]
 pub enum VaultError {
@@ -40,7 +41,8 @@ pub type QueryResult<T> = Result<T, ResponseError>;
 pub enum MessageType {
     Status,
     Unlock,
-    Lock
+    Lock,
+    Get
 }
 
 #[derive(Serialize, Deserialize, Debug)]
