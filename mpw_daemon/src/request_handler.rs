@@ -10,6 +10,27 @@ pub struct RequestHandler {
     vault: Mutex<Vault>,
 }
 
+macro_rules! generate_handlers {
+    ($($variant:ident => $target:ty),* $(,)?) => {
+        pub fn reply(msg: &Message, vault: &Mutex<Vault>) -> QueryResult<SecureString> {
+            match msg.message_type {
+                $(
+                MessageType::$variant => {
+                    let query = serde_json::from_str::<$target>(msg.payload.unsecure())?;
+                    query.generate_response(&vault)
+                }
+                )*
+            }
+        }
+    };
+}
+
+generate_handlers! (
+    Status => status::Status,
+    Unlock => unlock::Unlock,
+    Lock => unlock::Lock,
+);
+
 impl RequestHandler {
     pub fn new(vault: Vault) -> Self {
         RequestHandler {
@@ -62,16 +83,7 @@ impl RequestHandler {
 
     fn handle_message(&self, data: &str) -> QueryResult<SecureString> {
         let msg: Message = serde_json::from_str(data)?;
-        let response = match msg.message_type {
-            MessageType::Status => {
-                let query: status::Status = serde_json::from_str(msg.payload.unsecure())?;
-                query.generate_response(&self.vault)
-            }
-            MessageType::Unlock => {
-                let query: unlock::Unlock = serde_json::from_str(msg.payload.unsecure())?;
-                query.generate_response(&self.vault)
-            }
-        }?;
+        let response = reply(&msg, &self.vault)?;
         Ok(format!("{}\n", response.into_unsecure()).into())
     }
 }

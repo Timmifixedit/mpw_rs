@@ -12,6 +12,8 @@ enum Query {
     Status(mpw_daemon::messages::status::Status),
     #[command(name = "unlock")]
     Unlock(mpw_daemon::messages::unlock::Unlock),
+    #[command(name = "lock")]
+    Lock(mpw_daemon::messages::unlock::Lock),
 }
 
 #[derive(Debug, Parser)]
@@ -49,6 +51,7 @@ macro_rules! generate_to_message {
 generate_to_message!(
     Status => MessageType::Status,
     Unlock => MessageType::Unlock,
+    Lock => MessageType::Lock,
 );
 
 fn send_message(msg: Message, stream: &mut UnixStream) {
