@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use std::process::exit;
 use std::sync::Arc;
 use std::thread;
+use std::time::Duration;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -19,6 +20,8 @@ use std::thread;
 struct Args {
     #[arg(required = true)]
     vault_path: PathBuf,
+    #[arg(short, long, required = false, default_value = "300")]
+    timeout: u64,
 }
 
 fn main() {
@@ -48,7 +51,10 @@ fn main() {
     }
 
     println!("Listening on {socket_path}...");
-    let handler = Arc::new(request_handler::RequestHandler::new(vault));
+    let handler = Arc::new(request_handler::RequestHandler::new(
+        vault,
+        Duration::from_secs(args.timeout),
+    ));
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {

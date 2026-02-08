@@ -2,15 +2,19 @@ use mpw_core::vault::Vault;
 use mpw_daemon::messages::{
     get, list, status, unlock, Message, MessageType, Query, QueryResult, Response,
 };
+use mpw_daemon::timer::CancellationToken;
 use secure_string::SecureString;
 use std::io::{BufRead, BufReader, Write};
 use std::net::Shutdown;
 use std::ops::DerefMut;
 use std::os::unix::net::UnixStream;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 pub struct RequestHandler {
-    vault: Mutex<Vault>,
+    vault: Arc<Mutex<Vault>>,
+    timer: Mutex<CancellationToken>,
+    timeout: Duration,
 }
 
 macro_rules! generate_handlers {
@@ -37,10 +41,30 @@ generate_handlers! (
 );
 
 impl RequestHandler {
-    pub fn new(vault: Vault) -> Self {
+    pub fn new(vault: Vault, lock_timeout: Duration) -> Self {
+        let vault = Arc::new(Mutex::new(vault));
+        let vault_clone = vault.clone();
         RequestHandler {
-            vault: Mutex::new(vault),
+            vault,
+            timer: Mutex::new(CancellationToken::new()),
+            timeout: lock_timeout,
         }
+    }
+
+    fn reset_timeout(&self) {
+        println!("Resetting lock timeout");
+        let vault_clone = self.vault.clone();
+        let mut timer_access = self.timer.lock().unwrap();
+        timer_access.cancel();
+        *timer_access = CancellationToken::launch(
+            move || {
+                if let Ok(mut v) = vault_clone.lock() && !v.is_locked(){
+                    // TODO logging
+                    v.lock();
+                }
+            },
+            self.timeout,
+        );
     }
 
     pub fn handle_stream(&self, stream: UnixStream) {
@@ -93,6 +117,11 @@ impl RequestHandler {
         });
         let msg: Message = serde_json::from_str(data)?;
         let response = reply(&msg, vault.deref_mut())?;
+        match msg.message_type {
+            MessageType::List | MessageType::Get | MessageType::Unlock => self.reset_timeout(),
+            _ => ()
+        }
+
         Ok(format!("{}\n", response.into_unsecure()).into())
     }
 }
