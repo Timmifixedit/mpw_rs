@@ -1,10 +1,11 @@
 use mpw_core::vault::Vault;
 use mpw_daemon::messages::{
-    Message, MessageType, Query, QueryResult, Response, get, list, status, unlock,
+    get, list, status, unlock, Message, MessageType, Query, QueryResult, Response,
 };
 use secure_string::SecureString;
 use std::io::{BufRead, BufReader, Write};
 use std::net::Shutdown;
+use std::ops::DerefMut;
 use std::os::unix::net::UnixStream;
 use std::sync::Mutex;
 
@@ -14,12 +15,12 @@ pub struct RequestHandler {
 
 macro_rules! generate_handlers {
     ($($variant:ident => $target:ty),* $(,)?) => {
-        pub fn reply(msg: &Message, vault: &Mutex<Vault>) -> QueryResult<SecureString> {
+        pub fn reply(msg: &Message, vault: &mut Vault) -> QueryResult<SecureString> {
             match msg.message_type {
                 $(
                 MessageType::$variant => {
                     let query = serde_json::from_str::<$target>(msg.payload.unsecure())?;
-                    query.generate_response(&vault)
+                    query.generate_response(vault)
                 }
                 )*
             }
@@ -86,8 +87,12 @@ impl RequestHandler {
     }
 
     fn handle_message(&self, data: &str) -> QueryResult<SecureString> {
+        let mut vault = self.vault.lock().unwrap_or_else(|err| {
+            eprintln!("a handler panicked: {}", err);
+            err.into_inner()
+        });
         let msg: Message = serde_json::from_str(data)?;
-        let response = reply(&msg, &self.vault)?;
+        let response = reply(&msg, vault.deref_mut())?;
         Ok(format!("{}\n", response.into_unsecure()).into())
     }
 }

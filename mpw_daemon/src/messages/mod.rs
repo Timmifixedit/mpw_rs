@@ -1,7 +1,6 @@
 use mpw_core::vault::Vault;
 use secure_string::SecureString;
 use serde::{Deserialize, Serialize};
-use std::sync::Mutex;
 
 pub mod status;
 pub mod unlock;
@@ -61,5 +60,5 @@ pub enum Response {
 
 //Payload should be serializable (directly via serde, enforce trait) and have a generate_response method
 pub trait Query {
-    fn generate_response(self, vault: &Mutex<Vault>) -> QueryResult<SecureString>;
+    fn generate_response(self, vault: &mut Vault) -> QueryResult<SecureString>;
 }

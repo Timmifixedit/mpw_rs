@@ -4,7 +4,6 @@ use mpw_core::path_manager::Search;
 use mpw_core::vault::Vault;
 use secure_string::SecureString;
 use serde::{Deserialize, Serialize};
-use std::sync::Mutex;
 
 #[derive(Serialize, Deserialize, Debug, Args)]
 pub struct List {
@@ -17,8 +16,7 @@ pub struct List {
 }
 
 impl Query for List {
-    fn generate_response(self, vault: &Mutex<Vault>) -> QueryResult<SecureString> {
-        let vault = vault.lock().expect("Something is seriously wrong");
+    fn generate_response(self, vault: &mut Vault) -> QueryResult<SecureString> {
         let search = self
             .search
             .as_deref()

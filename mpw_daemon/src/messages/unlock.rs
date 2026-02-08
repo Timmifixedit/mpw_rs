@@ -3,7 +3,6 @@ use clap::Args;
 use mpw_core::vault::Vault;
 use secure_string::SecureString;
 use serde::{Deserialize, Serialize};
-use std::sync::Mutex;
 
 #[derive(Serialize, Deserialize, Debug, Args)]
 pub struct Unlock {
@@ -15,16 +14,14 @@ pub struct Unlock {
 pub struct Lock;
 
 impl Query for Unlock {
-    fn generate_response(self, vault: &Mutex<Vault>) -> QueryResult<SecureString> {
-        let mut vault = vault.lock().expect("Something is seriously wrong");
+    fn generate_response(self, vault: &mut Vault) -> QueryResult<SecureString> {
         vault.unlock(self.master_pw)?;
         Ok("Ok".into())
     }
 }
 
 impl Query for Lock {
-    fn generate_response(self, vault: &Mutex<Vault>) -> QueryResult<SecureString> {
-        let mut vault = vault.lock().expect("Something is seriously wrong");
+    fn generate_response(self, vault: &mut Vault) -> QueryResult<SecureString> {
         vault.lock()?;
         Ok("Ok".into())
     }
