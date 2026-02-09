@@ -1,3 +1,4 @@
+use log::debug;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering::Relaxed;
@@ -9,7 +10,9 @@ pub struct CancellationToken {
 
 impl CancellationToken {
     pub fn new() -> Self {
-        CancellationToken { cancel: Arc::new(AtomicBool::new(false)) }
+        CancellationToken {
+            cancel: Arc::new(AtomicBool::new(false)),
+        }
     }
 
     pub fn launch<F: FnOnce() + Send + 'static>(f: F, delay: Duration) -> CancellationToken {
@@ -19,10 +22,10 @@ impl CancellationToken {
 
         let token = ret.cancel.clone();
         std::thread::spawn(move || {
-            println!("Timer launched");
+            debug!("Timer launched");
             std::thread::sleep(delay);
             if !token.load(Relaxed) {
-                println!("Timer expired");
+                debug!("Timer expired");
                 f()
             }
         });

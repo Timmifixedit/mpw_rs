@@ -1,3 +1,4 @@
+use crate::core_logs::{Severity, vault_error_severity};
 use crate::messages::{Query, QueryResult};
 use clap::Args;
 use mpw_core::vault::Vault;
@@ -22,7 +23,19 @@ impl Query for Unlock {
 
 impl Query for Lock {
     fn generate_response(self, vault: &mut Vault) -> QueryResult<SecureString> {
-        vault.lock()?;
-        Ok("Ok".into())
+        if let Err(err) = vault.lock() {
+            let severe = err
+                .errors
+                .iter()
+                .filter(|e| vault_error_severity(e) > Severity::Info)
+                .count();
+            if severe == 0 {
+                Ok("Ok".into())
+            } else {
+                Err(err.into())
+            }
+        } else {
+            Ok("Ok".into())
+        }
     }
 }

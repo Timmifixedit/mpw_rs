@@ -1,6 +1,9 @@
+use log::{debug, error, warn};
 use mpw_core::vault::Vault;
+use mpw_daemon::core_logs;
+use mpw_daemon::core_logs::Severity;
 use mpw_daemon::messages::{
-    get, list, status, unlock, Message, MessageType, Query, QueryResult, Response,
+    Message, MessageType, Query, QueryResult, Response, ResponseError, get, list, status, unlock,
 };
 use mpw_daemon::timer::CancellationToken;
 use secure_string::SecureString;
@@ -43,7 +46,6 @@ generate_handlers! (
 impl RequestHandler {
     pub fn new(vault: Vault, lock_timeout: Duration) -> Self {
         let vault = Arc::new(Mutex::new(vault));
-        let vault_clone = vault.clone();
         RequestHandler {
             vault,
             timer: Mutex::new(CancellationToken::new()),
@@ -52,15 +54,19 @@ impl RequestHandler {
     }
 
     fn reset_timeout(&self) {
-        println!("Resetting lock timeout");
+        debug!("Resetting lock timeout");
         let vault_clone = self.vault.clone();
         let mut timer_access = self.timer.lock().unwrap();
         timer_access.cancel();
         *timer_access = CancellationToken::launch(
             move || {
-                if let Ok(mut v) = vault_clone.lock() && !v.is_locked(){
-                    // TODO logging
-                    v.lock();
+                if let Ok(mut v) = vault_clone.lock()
+                    && !v.is_locked()
+                {
+                    debug!("Lock timeout reached. Locking vault.");
+                    if let Err(e) = v.lock() {
+                        core_logs::log_vault_errors(&e.into(), Severity::Warn);
+                    }
                 }
             },
             self.timeout,
@@ -74,52 +80,57 @@ impl RequestHandler {
         let line = SecureString::from(line);
         match result {
             Ok(0) => {
-                println!("Connection closed by client.");
+                warn!("Connection closed by client.");
             }
             Ok(_) => match self.handle_message(line.unsecure()) {
                 Ok(response) => {
                     let response = Response::Ok(response);
-                    println!("Response: {:?}", response);
+                    debug!("Response: {:?}", response);
                     if let Err(e) = (&stream).write_all(
                         serde_json::to_string(&response)
                             .expect("This should never fail")
                             .as_bytes(),
                     ) {
-                        eprintln!("Could not write to socket. {}", e);
+                        error!("Could not write to socket. {}", e);
                     }
                 }
                 Err(e) => {
-                    println!("Error: {:?}", e);
+                    match &e {
+                        ResponseError::Serde(_) => {
+                            error! {"Serialization error: {e}"}
+                        }
+                        ResponseError::Vault(ve) => core_logs::log_vault_errors(ve, Severity::Info),
+                    }
                     let response = Response::Err(e.to_string());
                     if let Err(e) = (&stream).write_all(
                         serde_json::to_string(&response)
                             .expect("This should never fail")
                             .as_bytes(),
                     ) {
-                        eprintln!("Could not write to socket. {}", e);
+                        error!("Could not write to socket. {}", e);
                     }
                 }
             },
             Err(err) => {
-                eprintln!("Error reading from stream: {}", err);
+                error!("Error reading from stream: {}", err);
             }
         }
 
         if let Err(e) = stream.shutdown(Shutdown::Both) {
-            eprintln!("Error shutting down stream: {}", e);
+            error!("Error shutting down stream: {}", e);
         }
     }
 
     fn handle_message(&self, data: &str) -> QueryResult<SecureString> {
         let mut vault = self.vault.lock().unwrap_or_else(|err| {
-            eprintln!("a handler panicked: {}", err);
+            warn!("A handler panicked: {}", err);
             err.into_inner()
         });
         let msg: Message = serde_json::from_str(data)?;
         let response = reply(&msg, vault.deref_mut())?;
         match msg.message_type {
             MessageType::List | MessageType::Get | MessageType::Unlock => self.reset_timeout(),
-            _ => ()
+            _ => (),
         }
 
         Ok(format!("{}\n", response.into_unsecure()).into())
