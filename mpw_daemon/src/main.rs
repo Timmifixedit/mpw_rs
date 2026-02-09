@@ -36,23 +36,33 @@ fn main() {
 
     info!("Successfully loaded vault in {}", args.vault_path.display());
     let vault = vault.unwrap();
-    let socket_path = "/home/tim/.mpw_socket";
-    let _ = std::fs::remove_file(socket_path); // Remove existing socket if it exists
-    let listener = match UnixListener::bind(socket_path) {
+    let socket_path = match std::env::home_dir() {
+        None => {
+            error!("Could not find home directory");
+            exit(1)
+        }
+        Some(home) => home,
+    }
+    .join(".mpw_socket");
+    let _ = std::fs::remove_file(&socket_path); // Remove existing socket if it exists
+    let listener = match UnixListener::bind(&socket_path) {
         Ok(listener) => listener,
         Err(err) => {
-            error!("Could not bind socket to {socket_path}: '{err}'");
+            error!(
+                "Could not bind socket to {}: '{err}'",
+                socket_path.display()
+            );
             exit(1);
         }
     };
 
     let perm = Permissions::from_mode(0o600);
-    if let Err(e) = std::fs::set_permissions(socket_path, perm) {
+    if let Err(e) = std::fs::set_permissions(&socket_path, perm) {
         error!("Could not set permissions {e}");
         exit(1);
     }
 
-    info!("Listening on {socket_path}...");
+    info!("Listening on {}...", socket_path.display());
     let handler = Arc::new(request_handler::RequestHandler::new(
         vault,
         Duration::from_secs(args.timeout),
