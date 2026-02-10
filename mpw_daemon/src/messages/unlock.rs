@@ -5,9 +5,8 @@ use mpw_core::vault::Vault;
 use secure_string::SecureString;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug, Args)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Unlock {
-    #[arg(required = true)]
     pub master_pw: SecureString,
 }
 

@@ -11,7 +11,7 @@ enum Query {
     #[command(name = "status")]
     Status(mpw_daemon::messages::status::Status),
     #[command(name = "unlock")]
-    Unlock(mpw_daemon::messages::unlock::Unlock),
+    Unlock,
     #[command(name = "lock")]
     Lock(mpw_daemon::messages::unlock::Lock),
     #[command(name = "get")]
@@ -46,6 +46,7 @@ macro_rules! generate_to_message {
                             .into(),
                     },
                     )*
+                    _ => panic!("Unsupported type"),
                 }
             }
         }
@@ -54,7 +55,6 @@ macro_rules! generate_to_message {
 
 generate_to_message!(
     Status => MessageType::Status,
-    Unlock => MessageType::Unlock,
     Lock => MessageType::Lock,
     Get => MessageType::Get,
     List => MessageType::List,
@@ -71,6 +71,26 @@ fn send_message(msg: Message, stream: &mut UnixStream) {
     }
 }
 
+fn query_password() -> SecureString {
+    let output = match std::process::Command::new("zenity")
+        .args(&["--password", "--title=Unlock Vault"])
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .output()
+    {
+        Ok(output) => output,
+        Err(err) => {
+            eprintln!("Failed to run zenity: {}", err);
+            exit(1)
+        }
+    };
+    SecureString::from(
+        String::from_utf8(output.stdout)
+            .expect("Invalid UTF-8")
+            .trim(),
+    )
+}
+
 fn main() {
     let args = Args::parse();
     let socket = tilde(&args.socket).to_string();
@@ -82,7 +102,26 @@ fn main() {
         }
     };
 
-    let message = args.cmd.into_message();
+    let message = match args.cmd {
+        Query::Unlock => {
+            let msg = mpw_daemon::messages::unlock::Unlock {
+                master_pw: query_password(),
+            };
+
+            if msg.master_pw.eq(&SecureString::from("".to_string())) {
+                eprintln!("Cancelled");
+                exit(0);
+            }
+
+            Message {
+                message_type: MessageType::Unlock,
+                payload: serde_json::to_string(&msg)
+                    .expect("Failed to serialize")
+                    .into(),
+            }
+        }
+        rest => rest.into_message(),
+    };
     send_message(message, &mut stream);
     let mut response = String::new();
     let res = stream.read_to_string(&mut response);
@@ -94,8 +133,8 @@ fn main() {
         Err(e) => {
             eprintln!("Failed to read response: {}", e);
             exit(1);
-        },
-        _ => ()
+        }
+        _ => (),
     }
     let response = SecureString::from(response);
     let response = match serde_json::from_str::<Response>(response.unsecure()) {
