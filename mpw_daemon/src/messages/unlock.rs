@@ -1,7 +1,6 @@
-use crate::core_logs::{Severity, vault_error_severity};
-use crate::messages::{Query, QueryResult};
+use crate::core_logs::{vault_error_severity, Severity};
+use crate::messages::{Query, QueryResult, Shared};
 use clap::Args;
-use mpw_core::vault::Vault;
 use secure_string::SecureString;
 use serde::{Deserialize, Serialize};
 
@@ -14,15 +13,15 @@ pub struct Unlock {
 pub struct Lock;
 
 impl Query for Unlock {
-    fn generate_response(self, vault: &mut Vault) -> QueryResult<SecureString> {
-        vault.unlock(self.master_pw)?;
+    fn generate_response(self, shared: &mut Shared) -> QueryResult<SecureString> {
+        shared.vault.unlock(self.master_pw)?;
         Ok("Ok".into())
     }
 }
 
 impl Query for Lock {
-    fn generate_response(self, vault: &mut Vault) -> QueryResult<SecureString> {
-        if let Err(err) = vault.lock() {
+    fn generate_response(self, shared: &mut Shared) -> QueryResult<SecureString> {
+        if let Err(err) = shared.vault.lock() {
             let severe = err
                 .errors
                 .iter()

@@ -12,3 +12,7 @@ mpw_core = { path = "../mpw_core" }
 secure-string = { version = "0.3.0", features = ["serde"] }
 log = "0.4.29"
 env_logger = "0.11.8"
+arboard = "3.6.1"
+
+[features]
+wayland-clipboard = ["arboard/wayland-data-control"]

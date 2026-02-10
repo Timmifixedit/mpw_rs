@@ -1,9 +1,11 @@
+use arboard::Clipboard;
 use log::{debug, error, warn};
 use mpw_core::vault::Vault;
 use mpw_daemon::core_logs;
 use mpw_daemon::core_logs::Severity;
 use mpw_daemon::messages::{
-    Message, MessageType, Query, QueryResult, Response, ResponseError, get, list, status, unlock,
+    Message, MessageType, Query, QueryResult, Response, ResponseError, Shared, get, list, status,
+    unlock,
 };
 use mpw_daemon::timer::CancellationToken;
 use secure_string::SecureString;
@@ -15,19 +17,19 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 pub struct RequestHandler {
-    vault: Arc<Mutex<Vault>>,
+    shared: Arc<Mutex<Shared>>,
     timer: Mutex<CancellationToken>,
     timeout: Duration,
 }
 
 macro_rules! generate_handlers {
     ($($variant:ident => $target:ty),* $(,)?) => {
-        pub fn reply(msg: &Message, vault: &mut Vault) -> QueryResult<SecureString> {
+        pub fn reply(msg: &Message, shared: &mut Shared) -> QueryResult<SecureString> {
             match msg.message_type {
                 $(
                 MessageType::$variant => {
                     let query = serde_json::from_str::<$target>(msg.payload.unsecure())?;
-                    query.generate_response(vault)
+                    query.generate_response(shared)
                 }
                 )*
             }
@@ -45,9 +47,11 @@ generate_handlers! (
 
 impl RequestHandler {
     pub fn new(vault: Vault, lock_timeout: Duration) -> Self {
-        let vault = Arc::new(Mutex::new(vault));
         RequestHandler {
-            vault,
+            shared: Arc::new(Mutex::new(Shared {
+                vault,
+                clipboard: Clipboard::new().expect("Failed to initialize clipboard"),
+            })),
             timer: Mutex::new(CancellationToken::new()),
             timeout: lock_timeout,
         }
@@ -55,16 +59,20 @@ impl RequestHandler {
 
     fn reset_timeout(&self) {
         debug!("Resetting lock timeout");
-        let vault_clone = self.vault.clone();
+        let shared_clone = self.shared.clone();
         let mut timer_access = self.timer.lock().unwrap();
         timer_access.cancel();
         *timer_access = CancellationToken::launch(
             move || {
-                if let Ok(mut v) = vault_clone.lock()
-                    && !v.is_locked()
+                if let Ok(mut s) = shared_clone.lock()
+                    && !s.vault.is_locked()
                 {
                     debug!("Lock timeout reached. Locking vault.");
-                    if let Err(e) = v.lock() {
+                    if let Err(e)= s.clipboard.clear() {
+                        error!("Failed to clear clipboard: {}", e);
+                    }
+
+                    if let Err(e) = s.vault.lock() {
                         core_logs::log_vault_errors(&e.into(), Severity::Warn);
                     }
                 }
@@ -122,12 +130,12 @@ impl RequestHandler {
     }
 
     fn handle_message(&self, data: &str) -> QueryResult<SecureString> {
-        let mut vault = self.vault.lock().unwrap_or_else(|err| {
+        let msg: Message = serde_json::from_str(data)?;
+        let mut shared = self.shared.lock().unwrap_or_else(|err| {
             warn!("A handler panicked: {}", err);
             err.into_inner()
         });
-        let msg: Message = serde_json::from_str(data)?;
-        let response = reply(&msg, vault.deref_mut())?;
+        let response = reply(&msg, shared.deref_mut())?;
         match msg.message_type {
             MessageType::List | MessageType::Get | MessageType::Unlock => self.reset_timeout(),
             _ => (),

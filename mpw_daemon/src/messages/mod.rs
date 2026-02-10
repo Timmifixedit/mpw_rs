@@ -1,3 +1,4 @@
+use arboard::Clipboard;
 use mpw_core::vault::Vault;
 use secure_string::SecureString;
 use serde::{Deserialize, Serialize};
@@ -58,7 +59,11 @@ pub enum Response {
     Err(String),
 }
 
-//Payload should be serializable (directly via serde, enforce trait) and have a generate_response method
+pub struct Shared {
+    pub vault: Vault,
+    pub clipboard: Clipboard,
+}
+
 pub trait Query {
-    fn generate_response(self, vault: &mut Vault) -> QueryResult<SecureString>;
+    fn generate_response(self, shared: &mut Shared) -> QueryResult<SecureString>;
 }

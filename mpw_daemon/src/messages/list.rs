@@ -1,7 +1,6 @@
-use crate::messages::{Query, QueryResult};
+use crate::messages::{Query, QueryResult, Shared};
 use clap::Args;
 use mpw_core::path_manager::Search;
-use mpw_core::vault::Vault;
 use secure_string::SecureString;
 use serde::{Deserialize, Serialize};
 
@@ -16,15 +15,15 @@ pub struct List {
 }
 
 impl Query for List {
-    fn generate_response(self, vault: &mut Vault) -> QueryResult<SecureString> {
+    fn generate_response(self, shared: &mut Shared) -> QueryResult<SecureString> {
         let search = self
             .search
             .as_deref()
             .map_or_else(|| Search::None, |s| Search::Contains(s));
         let result = if self.files {
-            vault.list_files(self.path, search)
+            shared.vault.list_files(self.path, search)
         } else {
-            vault.list_passwords(search)?
+            shared.vault.list_passwords(search)?
         };
 
         Ok(SecureString::from(result.join("\n")))

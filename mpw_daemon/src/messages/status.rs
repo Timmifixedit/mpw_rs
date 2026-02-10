@@ -1,6 +1,5 @@
-use crate::messages::{Query, QueryResult};
+use crate::messages::{Query, QueryResult, Shared};
 use clap::Args;
-use mpw_core::vault::Vault;
 use secure_string::SecureString;
 use serde::{Deserialize, Serialize};
 
@@ -8,8 +7,8 @@ use serde::{Deserialize, Serialize};
 pub struct Status {}
 
 impl Query for Status {
-    fn generate_response(self, vault: &mut Vault) -> QueryResult<SecureString> {
-        Ok(if vault.is_locked() {
+    fn generate_response(self, shared: &mut Shared) -> QueryResult<SecureString> {
+        Ok(if shared.vault.is_locked() {
             "locked"
         } else {
             "unlocked"
