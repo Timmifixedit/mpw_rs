@@ -1,0 +1,11 @@
+[package]
+name = "mpw_tray"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tray-icon = "0.21.3"
+image = { version = "0.25.9", features = ["png"] }
+gtk = "0.18.2"
+glib = "0.21.5"
+clap = {version = "4.5.57", features = ["derive"]}
