@@ -72,9 +72,7 @@ impl RequestHandler {
                         error!("Failed to clear clipboard: {}", e);
                     }
 
-                    if let Err(e) = s.vault.lock() {
-                        core_logs::log_vault_errors(&e.into(), Severity::Warn);
-                    }
+                    s.vault.quick_lock();
                 }
             },
             self.timeout,
