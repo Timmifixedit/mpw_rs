@@ -650,6 +650,10 @@ impl Vault {
         Ok(())
     }
 
+    pub fn quick_lock(&mut self) {
+        self.master_key = None;
+    }
+
     pub fn lock(&mut self) -> Result<(), VaultErrorStack> {
         if self.is_locked() {
             return Ok(());
