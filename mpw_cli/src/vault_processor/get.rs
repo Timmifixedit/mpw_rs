@@ -67,6 +67,8 @@ impl Handler for Get {
                             println!("Login copied to primary");
                         }
                     }
+                } else {
+                    println!("Clipboard unavailable. Use the show option to retrieve the password");
                 }
             },
         );
