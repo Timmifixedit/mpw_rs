@@ -141,7 +141,7 @@ trait FsHandler {
     fn is_recursive(&self) -> bool;
     fn get_name(&self) -> &str;
 
-    fn process(&self, vault: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup) {
+    fn process(&self, vault: &mut Vault) -> (VaultState, Followup) {
         let mut process = |name| {
             if self.is_path() {
                 let path = Path::new(name);
@@ -239,13 +239,13 @@ impl FsHandler for Dec {
 }
 
 impl Handler for Enc {
-    fn handle(self, vault: &mut Vault, clipboard: &mut Clipboard) -> (VaultState, Followup) {
-        self.process(vault, clipboard)
+    fn handle(self, vault: &mut Vault, _: Option<&mut Clipboard>) -> (VaultState, Followup) {
+        self.process(vault)
     }
 }
 
 impl Handler for Dec {
-    fn handle(self, vault: &mut Vault, clipboard: &mut Clipboard) -> (VaultState, Followup) {
-        self.process(vault, clipboard)
+    fn handle(self, vault: &mut Vault, _: Option<&mut Clipboard>) -> (VaultState, Followup) {
+        self.process(vault)
     }
 }

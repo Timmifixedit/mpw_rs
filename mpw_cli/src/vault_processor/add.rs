@@ -59,7 +59,7 @@ pub struct Add {
 }
 
 impl Handler for Add {
-    fn handle(self, vault: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup) {
+    fn handle(self, vault: &mut Vault, _: Option<&mut Clipboard>) -> (VaultState, Followup) {
         let result = (|| {
             let exists = vault.list_passwords(Search::None)?.contains(&self.name);
             if exists && !self.overwrite {

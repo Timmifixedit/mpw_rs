@@ -20,5 +20,5 @@ pub enum Verbosity {
 }
 
 pub trait Handler {
-    fn handle(self, vault: &mut Vault, clipboard: &mut Clipboard) -> (VaultState, Followup);
+    fn handle(self, vault: &mut Vault, clipboard: Option<&mut Clipboard>) -> (VaultState, Followup);
 }

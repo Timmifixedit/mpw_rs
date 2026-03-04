@@ -42,7 +42,7 @@ pub struct Get {
 }
 
 impl Handler for Get {
-    fn handle(self, vault: &mut Vault, clipboard: &mut Clipboard) -> (VaultState, Followup) {
+    fn handle(self, vault: &mut Vault, clipboard: Option<&mut Clipboard>) -> (VaultState, Followup) {
         vault.retrieve_password(&self.name).map_or_else(
             |e| println!("{}", e.to_string()),
             |(pw, login)| {
@@ -51,7 +51,7 @@ impl Handler for Get {
                         println!("{}", login);
                     }
                     println!("{}", pw.unsecure());
-                } else {
+                } else if let Some(clipboard) = clipboard {
                     let cb = clipboard.set().clipboard(LinuxClipboardKind::Clipboard);
                     if let Err(e) = cb.text(pw.unsecure()) {
                         eprintln!("Error copying password to clipboard: {}", e.to_string());

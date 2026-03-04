@@ -19,7 +19,7 @@ pub struct List {
 }
 
 impl Handler for List {
-    fn handle(self, vault: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup) {
+    fn handle(self, vault: &mut Vault, _: Option<&mut Clipboard>) -> (VaultState, Followup) {
         let mut entries;
         let search = self
             .search

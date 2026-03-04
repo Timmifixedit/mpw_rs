@@ -60,8 +60,8 @@ pub fn unlock(vault: &mut Vault, master_pw: SecureString) -> (VaultState, Follow
 }
 
 impl Handler for Lock {
-    fn handle(self, vault: &mut Vault, clipboard: &mut Clipboard) -> (VaultState, Followup) {
-        if let Err(err) = clipboard.clear() {
+    fn handle(self, vault: &mut Vault, clipboard: Option<&mut Clipboard>) -> (VaultState, Followup) {
+        if clipboard.is_some() && let Err(err) = clipboard.unwrap().clear() {
             println!("Error clearing clipboard: {err}");
         }
 

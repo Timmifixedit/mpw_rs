@@ -43,7 +43,7 @@ pub struct Remove {
 }
 
 impl Handler for Remove {
-    fn handle(self, vault: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup) {
+    fn handle(self, vault: &mut Vault, _: Option<&mut Clipboard>) -> (VaultState, Followup) {
         let remove = move |vlt: &mut Vault| {
             for name in self.names {
                 vlt.delete_password(&name).map_or_else(

@@ -55,7 +55,7 @@ pub struct Move {
 }
 
 impl Handler for Move {
-    fn handle(self, vault: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup) {
+    fn handle(self, vault: &mut Vault, _: Option<&mut Clipboard>) -> (VaultState, Followup) {
         print_if_error!(if self.file {
             vault.rename_fs_entry(&self.source, self.destination)
         } else {

@@ -26,8 +26,8 @@ use lock::Lock;
 use mpw_core::vault::Vault;
 use mv::Move;
 use remove::Remove;
-use rustyline::completion::Completer;
 use rustyline::Context;
+use rustyline::completion::Completer;
 use secure_release::{Release, Secure};
 use secure_string::SecureString;
 
@@ -65,7 +65,11 @@ struct VaultCli {
 }
 
 impl Handler for VaultCommand {
-    fn handle(self, vault: &mut Vault, clipboard: &mut Clipboard) -> (VaultState, Followup) {
+    fn handle(
+        self,
+        vault: &mut Vault,
+        clipboard: Option<&mut Clipboard>,
+    ) -> (VaultState, Followup) {
         match self {
             VaultCommand::Get(args) => args.handle(vault, clipboard),
             VaultCommand::Add(args) => args.handle(vault, clipboard),
@@ -83,7 +87,11 @@ impl Handler for VaultCommand {
 }
 
 impl Handler for VaultCli {
-    fn handle(self, vault: &mut Vault, clipboard: &mut Clipboard) -> (VaultState, Followup) {
+    fn handle(
+        self,
+        vault: &mut Vault,
+        clipboard: Option<&mut Clipboard>,
+    ) -> (VaultState, Followup) {
         self.cmd.handle(vault, clipboard)
     }
 }
@@ -101,7 +109,7 @@ pub struct VaultProcessor {
     state: VaultState,
     process_raw: Option<RawHandler>,
     process_secret: Option<SecretHandler>,
-    clipboard: Clipboard,
+    clipboard: Option<Clipboard>,
 }
 
 impl VaultProcessor {
@@ -115,12 +123,17 @@ impl VaultProcessor {
             state = VaultState::Unlocked;
             secret_handler = None;
         };
+        let cb = Clipboard::new();
+        if let Err(e) = &cb {
+            println!("Clipboard not available: {e}")
+        }
+
         VaultProcessor {
             vault,
             state,
             process_raw: None,
             process_secret: secret_handler,
-            clipboard: Clipboard::new().expect("Failed to initialize clipboard"),
+            clipboard: cb.ok(),
         }
     }
 
@@ -175,7 +188,7 @@ impl cp::CommandProcessor for VaultProcessor {
             }
         };
 
-        let (state, followup) = parsed.handle(&mut self.vault, &mut self.clipboard);
+        let (state, followup) = parsed.handle(&mut self.vault, self.clipboard.as_mut());
         self.state = state;
         self.set_followup(followup);
     }
@@ -219,7 +232,7 @@ impl cp::CommandProcessor for VaultProcessor {
     }
 
     fn handle_shutdown(&mut self) {
-        let (state, followup) = Lock {}.handle(&mut self.vault, &mut self.clipboard);
+        let (state, followup) = Lock {}.handle(&mut self.vault, self.clipboard.as_mut());
         self.state = state;
         self.set_followup(followup);
     }

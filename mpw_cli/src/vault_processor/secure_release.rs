@@ -87,14 +87,14 @@ pub struct Release {
 }
 
 impl Handler for Secure {
-    fn handle(self, vault: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup) {
+    fn handle(self, vault: &mut Vault, _: Option<&mut Clipboard>) -> (VaultState, Followup) {
         print_if_error!(vault.add_fs_entry(self.path, self.name));
         (VaultState::Unlocked, Followup::None)
     }
 }
 
 impl Handler for Release {
-    fn handle(self, vault: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup) {
+    fn handle(self, vault: &mut Vault, _: Option<&mut Clipboard>) -> (VaultState, Followup) {
         for name in self.names {
             if let Err(err) = vault.remove_fs_entry(&name) {
                 print_error(err, self.verbose.clone());

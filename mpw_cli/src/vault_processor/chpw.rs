@@ -9,7 +9,7 @@ use mpw_core::vault::Vault;
 pub struct ChangePw {}
 
 impl Handler for ChangePw {
-    fn handle(self, _: &mut Vault, _: &mut Clipboard) -> (VaultState, Followup) {
+    fn handle(self, _: &mut Vault, _: Option<&mut Clipboard>) -> (VaultState, Followup) {
         println!("Enter you new master password:");
         let followup = Followup::Secret(Box::new(move |_, pw1| {
             println!("Enter your new master password again:");
