@@ -8,6 +8,7 @@ mod vault_processor;
 
 use crate::command_processor::CommandProcessor;
 use crate::vault_loader::VaultLoader;
+use clap::Parser;
 use mpw_core::vault::VaultError;
 use owo_colors::OwoColorize;
 use rustyline::error::ReadlineError;
@@ -154,7 +155,16 @@ fn run() -> Result<(), AppError> {
     Ok(())
 }
 
+#[derive(Parser, Debug)]
+#[command(
+    version,
+    about = "MPW command line interface",
+    long_about = "My Password command line interface for accessing all functions of MPW"
+)]
+struct Opt {}
+
 fn main() {
+    Opt::parse();
     if let Err(err) = run() {
         eprintln!("Error: {}", err);
         exit(1);
