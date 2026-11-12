@@ -1,5 +1,4 @@
 mod command_processor;
-mod config;
 mod file_name_completer;
 mod logo;
 mod util;

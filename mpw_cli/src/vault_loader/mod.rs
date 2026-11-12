@@ -7,7 +7,7 @@ mod mv;
 mod remove;
 
 use crate::command_processor::CommandProcessor;
-use crate::config::get_config_path;
+use mpw_core::config::get_config_path;
 use crate::print_if_error;
 use crate::vault_loader::completers::CompleterImpl;
 use crate::vault_processor::VaultProcessor;
