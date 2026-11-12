@@ -1,8 +1,8 @@
 use crate::page::Page::Vault;
 use crate::page::{Page, PageInterface};
 use crate::passwords::Passwords;
-use iced::widget::{Container, button, container, text, text_input};
-use iced::{Alignment, Element, Length, alignment};
+use iced::widget::{Container, button, container, opaque, stack, text, text_input};
+use iced::{Alignment, Color, Element, Length, alignment};
 use secure_string::SecureString;
 use std::path::PathBuf;
 
@@ -11,6 +11,8 @@ pub enum Message {
     PwStringUpdated(String),
     LoginClicked,
     ShowHideToggle,
+    UnlockClicked,
+    AbortClicked,
 }
 
 pub struct LoginPage {
@@ -32,15 +34,49 @@ impl LoginPage {
 
     fn pw_input(&self) -> Container<'_, Message> {
         let content = iced::widget::row![
-            text_input("Password", self.master_pw.unsecure())
-                .size(24)
+            text_input("Enter your password", self.master_pw.unsecure())
+                .size(16)
                 .secure(self.hide_pw)
                 .on_input(Message::PwStringUpdated),
             button(self.show_hide.as_ref()).on_press(Message::ShowHideToggle)
         ]
-        .spacing(20)
+        .spacing(10)
         .align_y(Alignment::Center);
         container(content)
+    }
+
+    fn pw_popup(&self) -> Element<'_, Message> {
+        let modal_box = container(
+            iced::widget::column![
+                text("Enter your Password").size(20),
+                self.pw_input(),
+                iced::widget::row![
+                    button("Unlock")
+                        .on_press(Message::UnlockClicked)
+                        .style(button::primary),
+                    button("Abort")
+                        .on_press(Message::AbortClicked)
+                        .style(button::secondary),
+                ]
+                .spacing(10)
+            ]
+            .spacing(20)
+            .width(320),
+        )
+        .padding(24)
+        .style(container::bordered_box);
+
+        opaque(
+            container(modal_box)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .align_x(alignment::Horizontal::Center)
+                .align_y(alignment::Vertical::Center)
+                .style(|_theme| container::Style {
+                    background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.7).into()),
+                    ..Default::default()
+                }),
+        )
     }
 }
 
@@ -49,6 +85,7 @@ impl PageInterface for LoginPage {
 
     fn view(&self) -> Element<'_, Self::Message> {
         let content = iced::widget::column![
+            text("MyPW-GUI").size(48),
             text("Enter your Master Password").size(24),
             self.pw_input().padding(20),
             button("Login").on_press(Message::LoginClicked),
@@ -56,12 +93,13 @@ impl PageInterface for LoginPage {
         .spacing(20)
         .align_x(Alignment::Center);
 
-        container(content)
+        let main_content = container(content)
             .width(Length::Fill)
             .height(Length::Fill)
             .align_x(alignment::Horizontal::Center)
-            .align_y(alignment::Vertical::Center)
-            .into()
+            .align_y(alignment::Vertical::Center);
+
+        stack![main_content, self.pw_popup()].into()
     }
 
     fn update(&mut self, message: Self::Message) -> Option<Page> {
@@ -80,6 +118,8 @@ impl PageInterface for LoginPage {
                 self.show_hide = if self.hide_pw { "show" } else { "hide" }.into();
                 None
             }
+            Message::UnlockClicked => None,
+            Message::AbortClicked => None,
         }
     }
 }
