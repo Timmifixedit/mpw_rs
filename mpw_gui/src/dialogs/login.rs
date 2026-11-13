@@ -1,7 +1,7 @@
 use crate::controls::pw_input;
+use crate::dialogs::base::make_dialog;
 use iced::Element;
-use iced::widget::{Container, button, column, container, opaque, row, text};
-use iced::{Color, Length, alignment};
+use iced::widget::{button, column, container, row, text};
 
 #[derive(Clone)]
 pub enum Message {
@@ -51,21 +51,9 @@ impl LoginDialog {
             ]
             .spacing(20)
             .width(320),
-        )
-        .padding(24)
-        .style(container::bordered_box);
+        );
 
-        opaque(
-            container(modal_box)
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .align_x(alignment::Horizontal::Center)
-                .align_y(alignment::Vertical::Center)
-                .style(|_theme| container::Style {
-                    background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.7).into()),
-                    ..Default::default()
-                }),
-        )
+        make_dialog(modal_box)
     }
 
     pub fn update(&mut self, message: Message) -> Option<DialogResult> {
