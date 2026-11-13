@@ -1,21 +1,21 @@
+pub mod controls;
+pub mod dialogs;
 mod login;
 pub mod page;
 pub mod passwords;
-pub mod controls;
-pub mod dialogs;
 
 use iced::{Result, Theme};
 
+use crate::dialogs::message::MessageDialog;
 use crate::login::LoginPage;
-use crate::page::{Page, PageInterface};
+use crate::page::Page;
 use iced::Element;
-use secure_string::SecureString;
-
 
 #[derive(Clone)]
 enum Message {
     Login(login::Message),
     Passwords(passwords::Message),
+    Dialog,
 }
 
 impl From<login::Message> for Message {
@@ -32,20 +32,28 @@ impl From<passwords::Message> for Message {
 
 struct State {
     current_page: Page,
+    info_dialog: Option<MessageDialog>,
 }
 
 impl State {
     pub fn new() -> Self {
         State {
             current_page: Page::Login(LoginPage::new()),
+            info_dialog: None,
         }
     }
 }
 
 fn view(state: &State) -> Element<'_, Message> {
-    match &state.current_page {
+    let page = match &state.current_page {
         Page::Login(page) => page.view().map(Message::Login),
-        Page::Vault(page) => {page.view().map(Message::Passwords)},
+        Page::Vault(page) => page.view().map(Message::Passwords),
+    };
+
+    if let Some(dialog) = &state.info_dialog {
+        iced::widget::stack![page, dialog.view().map(|_| Message::Dialog)].into()
+    } else {
+        page.into()
     }
 }
 
@@ -53,11 +61,21 @@ macro_rules! create_dispatcher {
     ( $(($msg_variant:path, $page_variant:path)),* $(,)? ) => {
         fn update(state: &mut State, message: Message) {
             match message {
+                Message::Dialog => {
+                    state.info_dialog = None;
+                }
             $(
                 $msg_variant(msg) => {
                     if let $page_variant(page) = &mut state.current_page {
-                        if let Some(new_page) = page.update(msg) {
-                            state.current_page = new_page;
+                        match page.update(msg) {
+                            Ok(request) => {
+                                if let Some(new_page) = request {
+                                    state.current_page = new_page;
+                                }
+                            }
+                            Err(err) => {
+                                state.info_dialog = Some(err);
+                            }
                         }
                     }
                 }

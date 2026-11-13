@@ -1,8 +1,8 @@
-use crate::page::{Page, PageInterface};
-use iced::widget::{container, text, button};
+use crate::login::LoginPage;
+use crate::page::{Page, PageRequest};
+use iced::widget::{button, container, text};
 use iced::{Alignment, Element, Length, alignment};
 use mpw_core::vault::Vault;
-use crate::login::LoginPage;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -17,12 +17,8 @@ impl Passwords {
     pub fn new(vault: Vault) -> Self {
         Passwords { vault }
     }
-}
 
-impl PageInterface for Passwords {
-    type Message = Message;
-
-    fn view(&self) -> Element<'_, Self::Message> {
+    pub fn view(&self) -> Element<'_, Message> {
         let content = iced::widget::column![
             text("Vault Unlocked").size(32),
             text("Your passwords are accessible here."), //.padding(10),
@@ -39,7 +35,7 @@ impl PageInterface for Passwords {
             .into()
     }
 
-    fn update(&mut self, message: Self::Message) -> Option<Page> {
+    pub fn update(&mut self, message: Message) -> PageRequest {
         match message {
             Message::Quit => {
                 self.vault.lock().expect("error locking");

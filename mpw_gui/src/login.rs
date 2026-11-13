@@ -1,7 +1,8 @@
 use crate::dialogs::login;
 use crate::dialogs::login::DialogResult;
-use crate::page::Page::Vault;
-use crate::page::{Page, PageInterface};
+use crate::dialogs::message::{MessageDialog, MessageType};
+use crate::no_page;
+use crate::page::{Page, PageRequest};
 use crate::passwords::Passwords;
 use iced::widget::{button, container, pick_list, stack, text};
 use iced::{Alignment, Element, Font, Length};
@@ -47,12 +48,8 @@ impl LoginPage {
             vault: None,
         }
     }
-}
 
-impl PageInterface for LoginPage {
-    type Message = Message;
-
-    fn view(&self) -> Element<'_, Self::Message> {
+    pub fn view(&self) -> Element<'_, Message> {
         use iced::widget::{column, row, space};
         let header = column![text("MyPW-GUI").size(48).font(Font::MONOSPACE),]
             .spacing(10)
@@ -91,27 +88,21 @@ impl PageInterface for LoginPage {
         }
     }
 
-    fn update(&mut self, message: Self::Message) -> Option<Page> {
+    pub fn update(&mut self, message: Message) -> PageRequest {
         match message {
             Message::LoadPressed => {
-                if self.selected_vault.is_none() {
-                    return None;
+                if let Some(vault_name) = self.selected_vault.as_ref() {
+                    self.vault = Some(
+                        mpw_core::vault::Vault::load(
+                            self.vault_entries.get(vault_name).unwrap().to_owned(),
+                        )
+                        .map_err(|err| MessageDialog::new(err.to_string(), MessageType::Error))?,
+                    );
+                    self.show_pw_dialog = true;
                 }
-                self.vault = Some(
-                    mpw_core::vault::Vault::load(
-                        self.vault_entries
-                            .get(self.selected_vault.as_ref().unwrap())
-                            .unwrap()
-                            .to_owned(),
-                    )
-                    .expect("Failed to load vault"),
-                );
-                self.show_pw_dialog = true;
-                None
             }
             Message::VaultSelected(v_name) => {
                 self.selected_vault = Some(v_name);
-                None
             }
             Message::PwDialogMessage(msg) => {
                 if let Some(res) = self.pw_dialog.update(msg) {
@@ -120,17 +111,17 @@ impl PageInterface for LoginPage {
                             self.show_pw_dialog = false;
                         }
                         DialogResult::Confirmed => {
-
-                            return Some(Vault(Passwords::new(
+                            return Page::Vault(Passwords::new(
                                 self.vault
                                     .take()
                                     .expect("Invalid state, a vault should be present"),
-                            )));
+                            ))
+                            .into();
                         }
                     }
                 }
-                None
             }
         }
+        no_page!()
     }
 }
