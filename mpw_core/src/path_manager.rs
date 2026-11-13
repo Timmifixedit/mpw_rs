@@ -180,6 +180,13 @@ impl PathManager {
         entries
     }
 
+    /// Returns the name of the default entry
+    /// # Returns
+    /// * The name of the default entry or nothing if no default entry exists.
+    pub fn get_default_name(&self) -> Option<&String> {
+        self.default.as_ref()
+    }
+
     /// Returns the default entry.
     /// # Returns
     /// The default entry or nothing if no default entry exits.
@@ -321,6 +328,10 @@ impl PathManager {
 
     pub fn iter(&self) -> impl Iterator<Item = (&String, &PathBuf)> {
         self.entries.iter()
+    }
+
+    pub fn names(&self) -> impl Iterator<Item = &String> {
+        self.entries.keys()
     }
 }
 
