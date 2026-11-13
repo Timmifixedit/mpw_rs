@@ -32,14 +32,12 @@ impl From<passwords::Message> for Message {
 
 struct State {
     current_page: Page,
-    master_pw: SecureString,
 }
 
 impl State {
     pub fn new() -> Self {
         State {
             current_page: Page::Login(LoginPage::new()),
-            master_pw: SecureString::from(""),
         }
     }
 }

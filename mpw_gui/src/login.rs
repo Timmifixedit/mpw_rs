@@ -23,12 +23,6 @@ pub struct LoginPage {
     vault: Option<mpw_core::vault::Vault>,
 }
 
-impl From<login::Message> for Message {
-    fn from(msg: login::Message) -> Self {
-        Message::PwDialogMessage(msg)
-    }
-}
-
 impl LoginPage {
     pub fn new() -> Self {
         let entries = get_config_path().map_or_else(
@@ -126,7 +120,12 @@ impl PageInterface for LoginPage {
                             self.show_pw_dialog = false;
                         }
                         DialogResult::Confirmed => {
-                            return Some(Vault(Passwords::new(self.vault.take().unwrap())));
+
+                            return Some(Vault(Passwords::new(
+                                self.vault
+                                    .take()
+                                    .expect("Invalid state, a vault should be present"),
+                            )));
                         }
                     }
                 }
