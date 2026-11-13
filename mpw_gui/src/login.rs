@@ -1,32 +1,32 @@
+use crate::dialogs::login;
+use crate::dialogs::login::DialogResult;
 use crate::page::Page::Vault;
 use crate::page::{Page, PageInterface};
 use crate::passwords::Passwords;
-use iced::widget::sensor::Key;
-use iced::widget::{Container, button, container, opaque, pick_list, stack, text, text_input};
-use iced::{Alignment, Color, Element, Font, Length, Theme, alignment};
+use iced::widget::{button, container, pick_list, stack, text};
+use iced::{Alignment, Element, Font, Length};
 use mpw_core::config::get_config_path;
 use mpw_core::path_manager::PathManager;
-use secure_string::SecureString;
-use std::path::PathBuf;
-use iced::wgpu::naga::compact::KeepUnused::No;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum Message {
-    PwStringUpdated(String),
     LoadPressed,
-    ShowHideToggle,
-    UnlockClicked,
-    AbortClicked,
     VaultSelected(String),
+    PwDialogMessage(login::Message),
 }
 
 pub struct LoginPage {
-    master_pw: SecureString,
-    hide_pw: bool,
-    show_hide: String,
     vault_entries: PathManager,
     selected_vault: Option<String>,
+    pw_dialog: login::LoginDialog,
     show_pw_dialog: bool,
+    vault: Option<mpw_core::vault::Vault>,
+}
+
+impl From<login::Message> for Message {
+    fn from(msg: login::Message) -> Self {
+        Message::PwDialogMessage(msg)
+    }
 }
 
 impl LoginPage {
@@ -46,60 +46,12 @@ impl LoginPage {
             },
         );
         LoginPage {
-            master_pw: "".into(),
             selected_vault: entries.get_default_name().map(|name| name.to_owned()),
-            hide_pw: true,
-            show_hide: "show".into(),
             vault_entries: entries,
             show_pw_dialog: false,
+            pw_dialog: login::LoginDialog::new(),
+            vault: None,
         }
-    }
-
-    fn pw_input(&self) -> Container<'_, Message> {
-        let content = iced::widget::row![
-            text_input("Enter your password", self.master_pw.unsecure())
-                .size(16)
-                .secure(self.hide_pw)
-                .on_input(Message::PwStringUpdated),
-            button(self.show_hide.as_ref()).on_press(Message::ShowHideToggle)
-        ]
-        .spacing(10)
-        .align_y(Alignment::Center);
-        container(content)
-    }
-
-    fn pw_popup(&self) -> Element<'_, Message> {
-        let modal_box = container(
-            iced::widget::column![
-                text("Enter your Password").size(20),
-                self.pw_input(),
-                iced::widget::row![
-                    button("Unlock")
-                        .on_press(Message::UnlockClicked)
-                        .style(button::primary),
-                    button("Abort")
-                        .on_press(Message::AbortClicked)
-                        .style(button::secondary),
-                ]
-                .spacing(10)
-            ]
-            .spacing(20)
-            .width(320),
-        )
-        .padding(24)
-        .style(container::bordered_box);
-
-        opaque(
-            container(modal_box)
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .align_x(alignment::Horizontal::Center)
-                .align_y(alignment::Vertical::Center)
-                .style(|_theme| container::Style {
-                    background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.7).into()),
-                    ..Default::default()
-                }),
-        )
     }
 }
 
@@ -135,7 +87,11 @@ impl PageInterface for LoginPage {
         .padding(20)
         .align_x(Alignment::Center);
         if self.show_pw_dialog {
-            stack![main_page, self.pw_popup()].into()
+            stack![
+                main_page,
+                self.pw_dialog.view().map(Message::PwDialogMessage)
+            ]
+            .into()
         } else {
             main_page.into()
         }
@@ -143,36 +99,37 @@ impl PageInterface for LoginPage {
 
     fn update(&mut self, message: Self::Message) -> Option<Page> {
         match message {
-            Message::PwStringUpdated(pw) => {
-                self.master_pw = pw.into();
-                None
-            }
             Message::LoadPressed => {
                 if self.selected_vault.is_none() {
                     return None;
                 }
-                let vault = mpw_core::vault::Vault::load(
-                    self.vault_entries
-                        .get(self.selected_vault.as_ref().unwrap())
-                        .unwrap()
-                        .to_owned(),
-                )
-                .expect("Failed to load vault");
+                self.vault = Some(
+                    mpw_core::vault::Vault::load(
+                        self.vault_entries
+                            .get(self.selected_vault.as_ref().unwrap())
+                            .unwrap()
+                            .to_owned(),
+                    )
+                    .expect("Failed to load vault"),
+                );
                 self.show_pw_dialog = true;
                 None
             }
-            Message::ShowHideToggle => {
-                self.hide_pw = !self.hide_pw;
-                self.show_hide = if self.hide_pw { "show" } else { "hide" }.into();
-                None
-            }
-            Message::UnlockClicked => None,
-            Message::AbortClicked => {
-                self.show_pw_dialog = false;
-                None
-            },
             Message::VaultSelected(v_name) => {
                 self.selected_vault = Some(v_name);
+                None
+            }
+            Message::PwDialogMessage(msg) => {
+                if let Some(res) = self.pw_dialog.update(msg) {
+                    match res {
+                        DialogResult::Cancelled => {
+                            self.show_pw_dialog = false;
+                        }
+                        DialogResult::Confirmed => {
+                            return Some(Vault(Passwords::new(self.vault.take().unwrap())));
+                        }
+                    }
+                }
                 None
             }
         }

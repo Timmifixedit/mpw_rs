@@ -1,6 +1,8 @@
 mod login;
 pub mod page;
 pub mod passwords;
+pub mod controls;
+pub mod dialogs;
 
 use iced::{Result, Theme};
 
@@ -10,7 +12,7 @@ use iced::Element;
 use secure_string::SecureString;
 
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 enum Message {
     Login(login::Message),
     Passwords(passwords::Message),
