@@ -1,34 +1,57 @@
 use crate::page::Page::Vault;
 use crate::page::{Page, PageInterface};
 use crate::passwords::Passwords;
-use iced::widget::{Container, button, container, opaque, stack, text, text_input};
-use iced::{Alignment, Color, Element, Length, alignment};
+use iced::widget::sensor::Key;
+use iced::widget::{Container, button, container, opaque, pick_list, stack, text, text_input};
+use iced::{Alignment, Color, Element, Font, Length, Theme, alignment};
+use mpw_core::config::get_config_path;
+use mpw_core::path_manager::PathManager;
 use secure_string::SecureString;
 use std::path::PathBuf;
+use iced::wgpu::naga::compact::KeepUnused::No;
 
 #[derive(Debug, Clone)]
 pub enum Message {
     PwStringUpdated(String),
-    LoginClicked,
+    LoadPressed,
     ShowHideToggle,
     UnlockClicked,
     AbortClicked,
+    VaultSelected(String),
 }
 
 pub struct LoginPage {
     master_pw: SecureString,
-    vault_path: PathBuf,
     hide_pw: bool,
     show_hide: String,
+    vault_entries: PathManager,
+    selected_vault: Option<String>,
+    show_pw_dialog: bool,
 }
 
 impl LoginPage {
     pub fn new() -> Self {
+        let entries = get_config_path().map_or_else(
+            || {
+                eprintln!(
+                    "Could not get config path. You won't be able to save your vault locations"
+                );
+                PathManager::default()
+            },
+            |path| {
+                PathManager::load(&path).unwrap_or_else(|e| {
+                    eprintln!("Could not load config file: {}", e);
+                    PathManager::default()
+                })
+            },
+        );
         LoginPage {
             master_pw: "".into(),
-            vault_path: "".into(),
+            selected_vault: entries.get_default_name().map(|name| name.to_owned()),
             hide_pw: true,
             show_hide: "show".into(),
+            vault_entries: entries,
+            show_pw_dialog: false,
         }
     }
 
@@ -84,22 +107,38 @@ impl PageInterface for LoginPage {
     type Message = Message;
 
     fn view(&self) -> Element<'_, Self::Message> {
-        let content = iced::widget::column![
-            text("MyPW-GUI").size(48),
-            text("Enter your Master Password").size(24),
-            self.pw_input().padding(20),
-            button("Login").on_press(Message::LoginClicked),
+        use iced::widget::{column, row, space};
+        let header = column![text("MyPW-GUI").size(48).font(Font::MONOSPACE),]
+            .spacing(10)
+            .align_x(Alignment::Center);
+
+        let vaults = self.vault_entries.names().collect::<Vec<_>>();
+        let drop_down = pick_list(vaults, self.selected_vault.as_ref(), |name| {
+            Message::VaultSelected(name.to_string())
+        });
+
+        let controls = column![
+            text("Select the vault you want to load"),
+            row![drop_down, button("Load").on_press(Message::LoadPressed)].spacing(10),
         ]
-        .spacing(20)
+        .spacing(15)
         .align_x(Alignment::Center);
 
-        let main_content = container(content)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .align_x(alignment::Horizontal::Center)
-            .align_y(alignment::Vertical::Center);
-
-        stack![main_content, self.pw_popup()].into()
+        let main_page = container(column![
+            header,
+            space().height(Length::FillPortion(1)),
+            controls,
+            space().height(Length::FillPortion(1)),
+        ])
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .padding(20)
+        .align_x(Alignment::Center);
+        if self.show_pw_dialog {
+            stack![main_page, self.pw_popup()].into()
+        } else {
+            main_page.into()
+        }
     }
 
     fn update(&mut self, message: Self::Message) -> Option<Page> {
@@ -108,10 +147,19 @@ impl PageInterface for LoginPage {
                 self.master_pw = pw.into();
                 None
             }
-            Message::LoginClicked => {
-                let vault = mpw_core::vault::Vault::load(self.vault_path.clone())
-                    .expect("Failed to load vault");
-                Vault(Passwords::new(vault)).into()
+            Message::LoadPressed => {
+                if self.selected_vault.is_none() {
+                    return None;
+                }
+                let vault = mpw_core::vault::Vault::load(
+                    self.vault_entries
+                        .get(self.selected_vault.as_ref().unwrap())
+                        .unwrap()
+                        .to_owned(),
+                )
+                .expect("Failed to load vault");
+                self.show_pw_dialog = true;
+                None
             }
             Message::ShowHideToggle => {
                 self.hide_pw = !self.hide_pw;
@@ -119,7 +167,14 @@ impl PageInterface for LoginPage {
                 None
             }
             Message::UnlockClicked => None,
-            Message::AbortClicked => None,
+            Message::AbortClicked => {
+                self.show_pw_dialog = false;
+                None
+            },
+            Message::VaultSelected(v_name) => {
+                self.selected_vault = Some(v_name);
+                None
+            }
         }
     }
 }
