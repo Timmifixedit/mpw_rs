@@ -1,6 +1,7 @@
 use crate::dialogs::message::MessageDialog;
 use crate::login::LoginPage;
 use crate::passwords::Passwords;
+use iced::Task;
 
 
 pub enum Page {
@@ -8,21 +9,15 @@ pub enum Page {
     Vault(Passwords),
 }
 
-pub type PageRequest = Result<Option<Page>, MessageDialog>;
+pub type PageMessage<M> = Result<(Option<Page>, Task<M>), MessageDialog>;
 
-impl From<Page> for PageRequest {
-    fn from(value: Page) -> Self {
-        Ok(Some(value))
-    }
-}
-
-impl From<MessageDialog> for PageRequest {
+impl<M> From<MessageDialog> for PageMessage<M> {
     fn from(value: MessageDialog) -> Self {
         Err(value)
     }
 }
 
 #[macro_export]
-macro_rules! no_page {
-    () => {Ok(None)};
+macro_rules! no_op {
+    () => {Ok((None, Task::none()))};
 }

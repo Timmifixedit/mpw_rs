@@ -1,7 +1,7 @@
 use crate::controls::pw_input;
 use crate::dialogs::base::make_dialog;
-use iced::Element;
 use iced::widget::{button, column, container, row, space, text};
+use iced::{Element, Task};
 use secure_string::SecureString;
 
 #[derive(Clone)]
@@ -86,7 +86,7 @@ impl LoginDialog {
     pub fn take_password(&mut self) -> SecureString {
         self.pw_input.take_password()
     }
-    
+
     pub fn clear_password(&mut self) {
         self.pw_input.clear_password();
     }
@@ -97,5 +97,9 @@ impl LoginDialog {
 
     pub fn clear_error(&mut self) {
         self.error = None;
+    }
+
+    pub fn focus(&mut self) -> Task<Message> {
+        self.pw_input.focus().map(Message::PwMessage)
     }
 }

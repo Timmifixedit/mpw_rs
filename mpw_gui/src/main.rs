@@ -4,15 +4,12 @@ mod login;
 pub mod page;
 pub mod passwords;
 
-use iced::{Result, Subscription, Theme, event};
+use iced::{Result, Subscription, Task, Theme};
 
 use crate::dialogs::message::MessageDialog;
 use crate::login::LoginPage;
 use crate::page::Page;
 use iced::Element;
-use iced::keyboard::Key;
-use iced::keyboard::key::Named;
-use iced::mouse::Event;
 
 #[derive(Clone)]
 enum Message {
@@ -64,7 +61,7 @@ fn view(state: &State) -> Element<'_, Message> {
 
 macro_rules! create_dispatcher {
     ( $(($msg_variant:path, $page_variant:path)),* $(,)? ) => {
-        fn update(state: &mut State, message: Message) {
+        fn update(state: &mut State, message: Message) -> Task<Message> {
             match message {
                 Message::Dialog => {
                     state.info_dialog = None;
@@ -73,10 +70,12 @@ macro_rules! create_dispatcher {
                 $msg_variant(msg) => {
                     if let $page_variant(page) = &mut state.current_page {
                         match page.update(msg) {
-                            Ok(request) => {
+                            Ok((request, task)) => {
                                 if let Some(new_page) = request {
                                     state.current_page = new_page;
                                 }
+
+                                return task.map($msg_variant);
                             }
                             Err(err) => {
                                 state.info_dialog = Some(err);
@@ -96,6 +95,8 @@ macro_rules! create_dispatcher {
                 }
                 Message::NoOp => {}
             }
+
+            Task::none()
         }
     };
 }

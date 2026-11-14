@@ -1,5 +1,5 @@
 use iced::Alignment;
-use iced::widget::{Container, button, container, text_input};
+use iced::widget::{Container, Id, button, container, text_input};
 use secure_string::SecureString;
 use std::mem;
 
@@ -14,6 +14,7 @@ pub struct PwInput {
     password: SecureString,
     show_hide: String,
     hide: bool,
+    text_field_id: Id,
 }
 
 impl PwInput {
@@ -22,6 +23,7 @@ impl PwInput {
             password: "".into(),
             show_hide: String::from("Show"),
             hide: true,
+            text_field_id: Id::unique(),
         }
     }
 
@@ -29,6 +31,7 @@ impl PwInput {
         let content = iced::widget::row![
             text_input("Enter your password", self.password.unsecure())
                 .size(16)
+                .id(self.text_field_id.clone())
                 .secure(self.hide)
                 .on_input(Message::PwUpdated)
                 .on_submit(Message::EnterPressed),
@@ -51,7 +54,7 @@ impl PwInput {
                 };
             }
             Message::EnterPressed => {
-               return true;
+                return true;
             }
         }
         false
@@ -67,5 +70,9 @@ impl PwInput {
 
     pub fn clear_password(&mut self) {
         self.password = "".into();
+    }
+
+    pub fn focus(&mut self) -> iced::Task<Message>{
+        iced::widget::operation::focus(self.text_field_id.clone())
     }
 }

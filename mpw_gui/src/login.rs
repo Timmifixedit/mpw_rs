@@ -1,11 +1,11 @@
 use crate::dialogs::login;
 use crate::dialogs::login::DialogResult;
 use crate::dialogs::message::{MessageDialog, MessageType};
-use crate::no_page;
-use crate::page::{Page, PageRequest};
+use crate::no_op;
+use crate::page::{Page, PageMessage};
 use crate::passwords::Passwords;
 use iced::widget::{button, container, pick_list, stack, text};
-use iced::{Alignment, Element, Font, Length};
+use iced::{Alignment, Element, Font, Length, Task};
 use mpw_core::config::get_config_path;
 use mpw_core::path_manager::PathManager;
 
@@ -101,7 +101,12 @@ impl LoginPage {
         self.show_pw_dialog = false;
     }
 
-    pub fn update(&mut self, message: Message) -> PageRequest {
+    fn open_pw_dialog(&mut self) -> Task<Message> {
+        self.show_pw_dialog = true;
+        self.pw_dialog.focus().map(Message::PwDialogMessage)
+    }
+
+    pub fn update(&mut self, message: Message) -> PageMessage<Message> {
         match message {
             Message::LoadPressed => {
                 if let Some(vault_name) = self.selected_vault.as_ref() {
@@ -111,7 +116,7 @@ impl LoginPage {
                         )
                         .map_err(|err| MessageDialog::new(err.to_string(), MessageType::Error))?,
                     );
-                    self.show_pw_dialog = true;
+                    return Ok((None, self.open_pw_dialog()));
                 }
             }
             Message::VaultSelected(v_name) => {
@@ -122,28 +127,27 @@ impl LoginPage {
                 use mpw_core::vault::VaultError::CoreError;
                 if let Some(res) = self.pw_dialog.update(msg) {
                     match res {
-                        DialogResult::Cancelled => {
-                            self.close_pw_dialog()
-                        }
+                        DialogResult::Cancelled => self.close_pw_dialog(),
                         DialogResult::Confirmed => {
                             let res = self.try_unlock_vault();
                             if res.is_err_and(|err| matches!(err, CoreError(WrongPassword))) {
                                 self.pw_dialog.set_error("Wrong password");
-                                return no_page!();
+                                return no_op!()
                             }
 
-                            return Page::Vault(Passwords::new(
+                            return Ok((Page::Vault(Passwords::new(
                                 self.vault
                                     .take()
                                     .expect("Invalid state, a vault should be present"),
                             ))
-                            .into();
+                            .into(), Task::none()));
                         }
                     }
                 }
             }
         }
-        no_page!()
+
+        no_op!()
     }
 
     pub fn handle_escape(&mut self) {

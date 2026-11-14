@@ -1,7 +1,7 @@
 use crate::login::LoginPage;
-use crate::page::{Page, PageRequest};
+use crate::page::{Page, PageMessage};
 use iced::widget::{button, container, text};
-use iced::{Alignment, Element, Length, alignment};
+use iced::{Alignment, Element, Length, Task, alignment};
 use mpw_core::vault::Vault;
 
 #[derive(Debug, Clone)]
@@ -35,11 +35,11 @@ impl Passwords {
             .into()
     }
 
-    pub fn update(&mut self, message: Message) -> PageRequest {
+    pub fn update(&mut self, message: Message) -> PageMessage<Message> {
         match message {
             Message::Quit => {
                 self.vault.lock().expect("error locking");
-                Page::Login(LoginPage::new()).into()
+                Ok((Some(Page::Login(LoginPage::new())), Task::none()))
             }
         }
     }
