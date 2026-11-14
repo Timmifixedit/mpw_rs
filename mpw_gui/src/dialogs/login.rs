@@ -86,6 +86,10 @@ impl LoginDialog {
     pub fn take_password(&mut self) -> SecureString {
         self.pw_input.take_password()
     }
+    
+    pub fn clear_password(&mut self) {
+        self.pw_input.clear_password();
+    }
 
     pub fn set_error(&mut self, err: impl ToString) {
         self.error = err.to_string().into();

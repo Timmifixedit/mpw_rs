@@ -64,4 +64,8 @@ impl PwInput {
     pub fn take_password(&mut self) -> SecureString {
         mem::replace(&mut self.password, "".into())
     }
+
+    pub fn clear_password(&mut self) {
+        self.password = "".into();
+    }
 }

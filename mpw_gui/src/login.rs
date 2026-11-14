@@ -95,6 +95,12 @@ impl LoginPage {
             .unlock(self.pw_dialog.take_password())
     }
 
+    fn close_pw_dialog(&mut self) {
+        self.pw_dialog.clear_password();
+        self.pw_dialog.clear_error();
+        self.show_pw_dialog = false;
+    }
+
     pub fn update(&mut self, message: Message) -> PageRequest {
         match message {
             Message::LoadPressed => {
@@ -117,8 +123,7 @@ impl LoginPage {
                 if let Some(res) = self.pw_dialog.update(msg) {
                     match res {
                         DialogResult::Cancelled => {
-                            self.pw_dialog.clear_error();
-                            self.show_pw_dialog = false;
+                            self.close_pw_dialog()
                         }
                         DialogResult::Confirmed => {
                             let res = self.try_unlock_vault();
