@@ -145,4 +145,8 @@ impl LoginPage {
         }
         no_page!()
     }
+
+    pub fn handle_escape(&mut self) {
+        self.close_pw_dialog();
+    }
 }

@@ -4,18 +4,23 @@ mod login;
 pub mod page;
 pub mod passwords;
 
-use iced::{Result, Theme};
+use iced::{Result, Subscription, Theme, event};
 
 use crate::dialogs::message::MessageDialog;
 use crate::login::LoginPage;
 use crate::page::Page;
 use iced::Element;
+use iced::keyboard::Key;
+use iced::keyboard::key::Named;
+use iced::mouse::Event;
 
 #[derive(Clone)]
 enum Message {
     Login(login::Message),
     Passwords(passwords::Message),
     Dialog,
+    EscapePressed,
+    NoOp,
 }
 
 impl From<login::Message> for Message {
@@ -80,9 +85,32 @@ macro_rules! create_dispatcher {
                     }
                 }
             )*
+                Message::EscapePressed => {
+                    match &mut state.current_page {
+                        $(
+                            $page_variant(page) => {
+                                page.handle_escape();
+                            }
+                        )*
+                    }
+                }
+                Message::NoOp => {}
             }
         }
     };
+}
+
+fn events(state: &State) -> Subscription<Message> {
+    use iced::keyboard::Event as Kevt;
+    use iced::keyboard::key::Key;
+    use iced::keyboard::key::Named;
+    iced::keyboard::listen().map(|evt| match evt {
+        Kevt::KeyPressed {
+            key: Key::Named(Named::Escape),
+            ..
+        } => Message::EscapePressed,
+        _ => Message::NoOp,
+    })
 }
 
 create_dispatcher!(
@@ -96,6 +124,7 @@ fn theme(state: &State) -> Theme {
 
 fn main() -> Result {
     iced::application(State::new, update, view)
+        .subscription(events)
         .theme(theme)
         .run()
 }

@@ -43,4 +43,6 @@ impl Passwords {
             }
         }
     }
+
+    pub fn handle_escape(&mut self) {}
 }
