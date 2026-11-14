@@ -13,23 +13,10 @@ use iced::Element;
 
 #[derive(Clone)]
 enum Message {
-    Login(login::Message),
-    Passwords(passwords::Message),
+    Page(page::PageEvent),
     Dialog,
     EscapePressed,
     NoOp,
-}
-
-impl From<login::Message> for Message {
-    fn from(value: login::Message) -> Self {
-        Message::Login(value)
-    }
-}
-
-impl From<passwords::Message> for Message {
-    fn from(value: passwords::Message) -> Self {
-        Message::Passwords(value)
-    }
 }
 
 struct State {
@@ -47,61 +34,15 @@ impl State {
 }
 
 fn view(state: &State) -> Element<'_, Message> {
-    let page = match &state.current_page {
-        Page::Login(page) => page.view().map(Message::Login),
-        Page::Vault(page) => page.view().map(Message::Passwords),
-    };
-
+    let page_view = state.current_page.view().map(Message::Page);
     if let Some(dialog) = &state.info_dialog {
-        iced::widget::stack![page, dialog.view().map(|_| Message::Dialog)].into()
+        iced::widget::stack![page_view, dialog.view().map(|_| Message::Dialog)].into()
     } else {
-        page.into()
+        page_view
     }
 }
 
-macro_rules! create_dispatcher {
-    ( $(($msg_variant:path, $page_variant:path)),* $(,)? ) => {
-        fn update(state: &mut State, message: Message) -> Task<Message> {
-            match message {
-                Message::Dialog => {
-                    state.info_dialog = None;
-                }
-            $(
-                $msg_variant(msg) => {
-                    if let $page_variant(page) = &mut state.current_page {
-                        match page.update(msg) {
-                            Ok((request, task)) => {
-                                if let Some(new_page) = request {
-                                    state.current_page = new_page;
-                                }
-
-                                return task.map($msg_variant);
-                            }
-                            Err(err) => {
-                                state.info_dialog = Some(err);
-                            }
-                        }
-                    }
-                }
-            )*
-                Message::EscapePressed => {
-                    match &mut state.current_page {
-                        $(
-                            $page_variant(page) => {
-                                page.handle_escape();
-                            }
-                        )*
-                    }
-                }
-                Message::NoOp => {}
-            }
-
-            Task::none()
-        }
-    };
-}
-
-fn events(state: &State) -> Subscription<Message> {
+fn events(_: &State) -> Subscription<Message> {
     use iced::keyboard::Event as Kevt;
     use iced::keyboard::key::Key;
     use iced::keyboard::key::Named;
@@ -114,12 +55,34 @@ fn events(state: &State) -> Subscription<Message> {
     })
 }
 
-create_dispatcher!(
-    (Message::Login, Page::Login),
-    (Message::Passwords, Page::Vault)
-);
+fn update(state: &mut State, message: Message) -> Task<Message> {
+    match message {
+        Message::Page(pe) => match state.current_page.update(pe) {
+            Ok((new_page, task)) => {
+                if let Some(page) = new_page {
+                    state.current_page = page;
+                }
 
-fn theme(state: &State) -> Theme {
+                task.map(Message::Page)
+            }
+            Err(err) => {
+                state.info_dialog = Some(err);
+                Task::none()
+            }
+        },
+        Message::Dialog => {
+            state.info_dialog = None;
+            Task::none()
+        }
+        Message::EscapePressed => {
+            state.current_page.handle_escape();
+            Task::none()
+        }
+        Message::NoOp => Task::none(),
+    }
+}
+
+fn theme(_: &State) -> Theme {
     Theme::Dracula
 }
 
