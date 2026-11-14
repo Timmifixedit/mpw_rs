@@ -5,7 +5,7 @@ use std::mem;
 
 #[derive(Clone)]
 pub enum Message {
-    PwUpdated(String), //TODO: dangerous since this will be potentially copied around
+    PwUpdated(SecureString),
     Toggle,
     EnterPressed,
 }
@@ -33,7 +33,7 @@ impl PwInput {
                 .size(16)
                 .id(self.text_field_id.clone())
                 .secure(self.hide)
-                .on_input(Message::PwUpdated)
+                .on_input(|s| Message::PwUpdated(s.into()))
                 .on_submit(Message::EnterPressed),
             button(self.show_hide.as_ref()).on_press(Message::Toggle)
         ]
@@ -44,7 +44,7 @@ impl PwInput {
 
     pub fn update(&mut self, message: Message) -> bool {
         match message {
-            Message::PwUpdated(s) => self.password = s.into(),
+            Message::PwUpdated(s) => self.password = s,
             Message::Toggle => {
                 self.hide = !self.hide;
                 self.show_hide = if self.hide {
