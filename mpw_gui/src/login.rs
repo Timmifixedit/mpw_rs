@@ -88,6 +88,13 @@ impl LoginPage {
         }
     }
 
+    fn try_unlock_vault(&mut self) -> Result<(), mpw_core::vault::VaultError> {
+        self.vault
+            .as_mut()
+            .expect("Invalid state. Vault should be loaded")
+            .unlock(self.pw_dialog.take_password())
+    }
+
     pub fn update(&mut self, message: Message) -> PageRequest {
         match message {
             Message::LoadPressed => {
@@ -105,12 +112,21 @@ impl LoginPage {
                 self.selected_vault = Some(v_name);
             }
             Message::PwDialogMessage(msg) => {
+                use mpw_core::error::MpwError::WrongPassword;
+                use mpw_core::vault::VaultError::CoreError;
                 if let Some(res) = self.pw_dialog.update(msg) {
                     match res {
                         DialogResult::Cancelled => {
+                            self.pw_dialog.clear_error();
                             self.show_pw_dialog = false;
                         }
                         DialogResult::Confirmed => {
+                            let res = self.try_unlock_vault();
+                            if res.is_err_and(|err| matches!(err, CoreError(WrongPassword))) {
+                                self.pw_dialog.set_error("Wrong password");
+                                return no_page!();
+                            }
+
                             return Page::Vault(Passwords::new(
                                 self.vault
                                     .take()

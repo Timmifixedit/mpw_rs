@@ -1,11 +1,13 @@
 use iced::Alignment;
 use iced::widget::{Container, button, container, text_input};
 use secure_string::SecureString;
+use std::mem;
 
 #[derive(Clone)]
 pub enum Message {
     PwUpdated(String), //TODO: dangerous since this will be potentially copied around
     Toggle,
+    EnterPressed,
 }
 
 pub struct PwInput {
@@ -28,7 +30,8 @@ impl PwInput {
             text_input("Enter your password", self.password.unsecure())
                 .size(16)
                 .secure(self.hide)
-                .on_input(Message::PwUpdated),
+                .on_input(Message::PwUpdated)
+                .on_submit(Message::EnterPressed),
             button(self.show_hide.as_ref()).on_press(Message::Toggle)
         ]
         .spacing(10)
@@ -36,7 +39,7 @@ impl PwInput {
         container(content)
     }
 
-    pub fn update(&mut self, message: Message) {
+    pub fn update(&mut self, message: Message) -> bool {
         match message {
             Message::PwUpdated(s) => self.password = s.into(),
             Message::Toggle => {
@@ -47,10 +50,18 @@ impl PwInput {
                     String::from("Hide")
                 };
             }
+            Message::EnterPressed => {
+               return true;
+            }
         }
+        false
     }
 
     pub fn password(&self) -> &SecureString {
         &self.password
+    }
+
+    pub fn take_password(&mut self) -> SecureString {
+        mem::replace(&mut self.password, "".into())
     }
 }
