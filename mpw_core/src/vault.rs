@@ -18,33 +18,51 @@ pub const FILE_EXTENSION: &'static str = "enc";
 const FILE_LIST: &'static str = constcat::concat!("EncryptedFiles", ".", VLT_EXTENSION);
 
 #[derive(thiserror::Error, Debug)]
-pub enum VaultError {
+pub enum EncryptionNoOp {
+    #[error("{0} is not encrypted")]
+    NotEncrypted(String),
+    #[error("{0} is already encrypted")]
+    AlreadyEncrypted(String),
+    #[error("{item} is a protected item within the vault directory {vault_dir}")]
+    VaultItem { item: String, vault_dir: String },
+    #[error("{0} is a protected item that already belongs to a vault.")]
+    ProtectedItem(String),
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum PasswordError {
+    #[error("Password '{0}' not found")]
+    PasswordNotFound(String),
+    #[error("Password name '{0}' contains invalid characters")]
+    InvalidPwName(String),
+    #[error("Password '{0}' already exists")]
+    AlreadyExists(String),
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum FatalError {
     #[error("Vault directory not found: {0}")]
     VaultDirNotFound(String),
     #[error("Vault file not found: {0}")]
     VaultFileNotFound(String),
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum VaultError {
+    #[error(transparent)]
+    Fatal(#[from] FatalError),
     #[error(transparent)]
     IoError(#[from] std::io::Error),
     #[error(transparent)]
     CoreError(#[from] MpwError),
     #[error("Vault is locked")]
     VaultLocked,
-    #[error("Password '{0}' not found")]
-    PasswordNotFound(String),
-    #[error("Password name '{0}' contains invalid characters")]
-    InvalidPwName(String),
-    #[error("'{0}' already exists")]
-    AlreadyExists(String),
     #[error("Invalid parameter '{0}'")]
     InvalidParameter(String),
-    #[error("{item} is a protected item within the vault directory {vault_dir}")]
-    VaultItem { item: String, vault_dir: String },
-    #[error("{0} is a protected item that already belongs to a vault.")]
-    ProtectedItem(String),
-    #[error("{0} is already encrypted")]
-    AlreadyEncrypted(String),
-    #[error("{0} is not encrypted")]
-    NotEncrypted(String),
+    #[error(transparent)]
+    PasswordError(#[from] PasswordError),
+    #[error(transparent)]
+    ItemSkipped(#[from] EncryptionNoOp),
     #[error(transparent)]
     PathManagerError(#[from] PathManagerError),
 }
@@ -114,7 +132,7 @@ impl<T> From<VaultError> for VaultResult<T> {
 
 fn assert_valid_name(pw_name: &str) -> Result<(), VaultError> {
     if pw_name.is_empty() || pw_name.contains("/") || pw_name.contains(r"\") {
-        return VaultError::InvalidPwName(pw_name.to_string()).into();
+        return Err(PasswordError::InvalidPwName(pw_name.to_string()).into());
     }
 
     Ok(())
@@ -140,7 +158,7 @@ fn encrypted_file_path(file_path: &Path) -> PathBuf {
 fn try_get_file_to_decrypt(file_path: &Path) -> VaultResult<PathBuf> {
     let encrypted = encrypted_file_path(file_path);
     if file_path.exists() && !encrypted.exists() {
-        return Err(VaultError::NotEncrypted(file_path.to_string_lossy().to_string()).into());
+        return Err(EncryptionNoOp::NotEncrypted(file_path.to_string_lossy().to_string()).into());
     }
 
     Ok(encrypted)
@@ -177,14 +195,16 @@ pub struct Vault {
 impl Vault {
     pub fn load(working_dir: PathBuf) -> VaultResult<Vault> {
         if !working_dir.is_dir() {
-            return VaultError::VaultDirNotFound(working_dir.to_string_lossy().to_string()).into();
+            return Err(
+                FatalError::VaultDirNotFound(working_dir.to_string_lossy().to_string()).into(),
+            );
         }
 
         if !working_dir.join(VAULT_FILE).exists() {
-            return VaultError::VaultFileNotFound(
+            return Err(FatalError::VaultFileNotFound(
                 working_dir.join(VAULT_FILE).to_string_lossy().to_string(),
             )
-            .into();
+            .into());
         }
 
         if !working_dir.join(PW_PATH).is_dir() {
@@ -222,7 +242,9 @@ impl Vault {
 
     pub fn new(working_dir: PathBuf, master_pw: SecureString) -> VaultResult<Vault> {
         if !working_dir.is_dir() {
-            return VaultError::VaultDirNotFound(working_dir.to_string_lossy().to_string()).into();
+            return Err(
+                FatalError::VaultDirNotFound(working_dir.to_string_lossy().to_string()).into(),
+            );
         }
 
         let file_list = working_dir.join(FILE_LIST);
@@ -246,7 +268,9 @@ impl Vault {
 
         let vlt_file = self.working_dir.join(VAULT_FILE);
         if !vlt_file.exists() {
-            return VaultError::VaultFileNotFound(vlt_file.to_string_lossy().to_string()).into();
+            return Err(
+                FatalError::VaultFileNotFound(vlt_file.to_string_lossy().to_string()).into(),
+            );
         }
 
         let vd_stream = std::fs::File::open(vlt_file)?;
@@ -294,11 +318,11 @@ impl Vault {
         let (pw_path, login_path) = self.pw_name_to_path(pw_name);
         assert_valid_name(pw_name)?;
         if pw_path.exists() && !overwrite {
-            return VaultError::AlreadyExists(pw_name.to_string()).into();
+            return Err(PasswordError::AlreadyExists(pw_name.to_string()).into());
         }
 
         if !pw_path.exists() && overwrite {
-            return VaultError::PasswordNotFound(pw_name.to_string()).into();
+            return Err(PasswordError::PasswordNotFound(pw_name.to_string()).into());
         }
 
         if pw != "".into() {
@@ -374,7 +398,7 @@ impl Vault {
     fn get_pw_by_name(&self, pw_name: &str) -> Result<(PathBuf, Option<PathBuf>), VaultError> {
         let (pw_path, login_path) = self.pw_name_to_path(pw_name);
         if !pw_path.exists() {
-            return VaultError::PasswordNotFound(pw_name.to_string()).into();
+            return Err(PasswordError::PasswordNotFound(pw_name.to_string()).into());
         }
 
         Ok((
@@ -417,11 +441,11 @@ impl Vault {
         }
 
         if file_path.starts_with(&self.working_dir) {
-            return VaultError::VaultItem {
+            return Err(EncryptionNoOp::VaultItem {
                 item: path_str.to_string(),
                 vault_dir: self.working_dir.to_string_lossy().to_string(),
             }
-            .into();
+            .into());
         }
 
         if file_path.extension().is_some_and(|e| {
@@ -429,7 +453,7 @@ impl Vault {
                 .iter()
                 .any(|c| *c == e.to_string_lossy().as_ref())
         }) {
-            return VaultError::ProtectedItem(path_str.to_string()).into();
+            return Err(EncryptionNoOp::ProtectedItem(path_str.to_string()).into());
         }
 
         Ok(())
@@ -447,7 +471,9 @@ impl Vault {
             .extension()
             .is_some_and(|e| e.to_string_lossy() == FILE_EXTENSION)
         {
-            return VaultError::AlreadyEncrypted(file_path.to_string_lossy().to_string()).into();
+            return Err(
+                EncryptionNoOp::AlreadyEncrypted(file_path.to_string_lossy().to_string()).into(),
+            );
         }
 
         let dest_path = encrypted_file_path(file_path);
@@ -489,7 +515,9 @@ impl Vault {
             .extension()
             .is_some_and(|e| e.to_string_lossy() != FILE_EXTENSION)
         {
-            return VaultError::NotEncrypted(file_path.to_string_lossy().to_string()).into();
+            return Err(
+                EncryptionNoOp::NotEncrypted(file_path.to_string_lossy().to_string()).into(),
+            );
         }
 
         let dest_path = file_path.with_extension("");
@@ -576,7 +604,7 @@ impl Vault {
     pub fn rename_password(&mut self, old_name: &str, new_name: &str) -> Result<(), VaultError> {
         let (pw_path, login_path) = self.get_pw_by_name(old_name)?;
         if self.get_pw_by_name(new_name).is_ok() {
-            return VaultError::AlreadyExists(new_name.to_string()).into();
+            return Err(PasswordError::AlreadyExists(new_name.to_string()).into());
         }
 
         let (pw_new, login_new) = self.pw_name_to_path(new_name);
@@ -624,9 +652,10 @@ impl Vault {
             self.encrypt_directory(entry)?;
         } else {
             if !entry.exists() && encrypted_file_path(&entry).exists() {
-                return Err(
-                    VaultError::AlreadyEncrypted(entry.to_string_lossy().to_string()).into(),
-                );
+                return Err(VaultError::ItemSkipped(EncryptionNoOp::AlreadyEncrypted(
+                    entry.to_string_lossy().to_string(),
+                ))
+                .into());
             }
             self.encrypt_file(entry)?;
         }

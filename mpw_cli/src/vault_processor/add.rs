@@ -4,6 +4,7 @@ use arboard::Clipboard;
 use clap::Args;
 use mpw_core::path_manager::Search;
 use mpw_core::vault;
+use mpw_core::vault::PasswordError;
 use mpw_core::vault::{Vault, VaultError};
 use rustyline::completion::{Completer, extract_word};
 use std::num::NonZeroU32;
@@ -60,14 +61,14 @@ pub struct Add {
 
 impl Handler for Add {
     fn handle(self, vault: &mut Vault, _: Option<&mut Clipboard>) -> (VaultState, Followup) {
-        let result = (|| {
+        let result: Result<_, VaultError> = (|| {
             let exists = vault.list_passwords(Search::None)?.contains(&self.name);
             if exists && !self.overwrite {
-                return Err(VaultError::AlreadyExists(self.name.clone()));
+                return Err(PasswordError::AlreadyExists(self.name.clone()).into());
             }
 
             if self.overwrite && !exists {
-                return Err(VaultError::PasswordNotFound(self.name.clone()));
+                return Err(PasswordError::PasswordNotFound(self.name.clone()).into());
             }
 
             let success_msg = format!(

@@ -20,7 +20,7 @@ pub fn unlock(vault: &mut Vault, master_pw: SecureString) -> (VaultState, Follow
             (VaultState::Unlocked, Followup::None)
         }
         Err(err) => match err {
-            V::VaultDirNotFound(e) | V::VaultFileNotFound(e) => {
+            V::Fatal(e) => {
                 eprintln!("Fatal error: {e}");
                 exit(1);
             }
@@ -44,14 +44,9 @@ pub fn unlock(vault: &mut Vault, master_pw: SecureString) -> (VaultState, Follow
             },
 
             V::VaultLocked
-            | V::PasswordNotFound(_)
-            | V::InvalidPwName(_)
-            | V::AlreadyExists(_)
+            | V::PasswordError(_)
             | V::InvalidParameter(_)
-            | V::VaultItem { .. }
-            | V::ProtectedItem(_)
-            | V::AlreadyEncrypted(_)
-            | V::NotEncrypted(_)
+            | V::ItemSkipped(_)
             | V::PathManagerError(_) => {
                 panic!("Unexpected error: {}", err);
             }

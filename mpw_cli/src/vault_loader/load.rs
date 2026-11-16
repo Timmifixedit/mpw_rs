@@ -5,7 +5,7 @@ use crate::vault_processor::VaultProcessor;
 use clap::Args;
 use mpw_core::path_manager::PathManager;
 use mpw_core::path_manager::Search;
-use mpw_core::vault::{Vault, VaultError};
+use mpw_core::vault::{FatalError, Vault, VaultError};
 use rustyline::Context;
 use rustyline::completion::{Completer, extract_word};
 use std::path::{Path, PathBuf};
@@ -126,7 +126,7 @@ impl Handler for Load {
 
         Vault::load(path.to_owned()).map_or_else(
             |e| {
-                if let VaultError::VaultFileNotFound(_) = &e {
+                if let VaultError::Fatal(FatalError::VaultFileNotFound(_)) = &e {
                     create_new_vault(path.to_owned())
                 } else {
                     println!("Error loading vault: {}", e);

@@ -5,7 +5,7 @@ use crate::vault_processor::util::list_candidates;
 use arboard::Clipboard;
 use clap::Args;
 use mpw_core::path_manager::Search;
-use mpw_core::vault::FILE_EXTENSION as FE;
+use mpw_core::vault::{EncryptionNoOp, FILE_EXTENSION as FE};
 use mpw_core::vault::{Vault, VaultError, VaultErrorStack};
 use rustyline::Context;
 use rustyline::completion::{Completer, extract_word};
@@ -95,34 +95,33 @@ pub fn print_error(err: VaultErrorStack, verbose: Verbosity) {
     for e in err.errors {
         match e {
             VaultError::VaultLocked
-            | VaultError::InvalidPwName(_)
-            | VaultError::InvalidParameter(_)
-            | VaultError::PasswordNotFound(_) => {
+            | VaultError::PasswordError(_)
+            | VaultError::InvalidParameter(_) => {
                 panic!("unexpected error {e:?}")
             }
 
-            VaultError::VaultDirNotFound(_) | VaultError::VaultFileNotFound(_) => {
+            VaultError::Fatal(_) => {
                 eprintln!("Critical error: {e}")
             }
 
             VaultError::PathManagerError(_) => println!("{e}"),
 
-            VaultError::NotEncrypted(_) | VaultError::AlreadyEncrypted(_) => {
-                if verbose == Verbosity::All {
-                    println!("{e}");
+            VaultError::ItemSkipped(err) => match err {
+                EncryptionNoOp::NotEncrypted(_) | EncryptionNoOp::AlreadyEncrypted(_) => {
+                    if verbose == Verbosity::All {
+                        println!("{err}");
+                    }
                 }
-            }
+
+                EncryptionNoOp::ProtectedItem(_) | EncryptionNoOp::VaultItem { .. } => {
+                    if verbose >= Verbosity::Normal {
+                        println!("{err}");
+                    }
+                }
+            },
 
             VaultError::IoError(_)
-            | VaultError::CoreError(_)
-            | VaultError::ProtectedItem(_)
-            | VaultError::AlreadyExists(_) => {
-                if verbose >= Verbosity::Normal {
-                    println!("{e}");
-                }
-            }
-
-            VaultError::VaultItem { .. } => {
+            | VaultError::CoreError(_) => {
                 if verbose >= Verbosity::Normal {
                     println!("{e}");
                 }
