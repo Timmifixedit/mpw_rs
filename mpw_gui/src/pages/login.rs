@@ -2,17 +2,18 @@ use crate::dialogs::login;
 use crate::dialogs::login::DialogResult;
 use crate::dialogs::message::{MessageDialog, MessageType};
 use crate::no_op;
+use crate::pages::app_settings::AppSettingsPage;
 use crate::pages::page::{Page, PageMessage};
 use crate::pages::passwords::Passwords;
 use iced::widget::{button, container, pick_list, stack, text};
 use iced::{Alignment, Element, Font, Length, Task};
 use mpw_core::config::get_config_path;
-use mpw_core::path_manager::{CreationError, PathManager};
-use std::path::PathBuf;
+use mpw_core::path_manager::PathManager;
 
 #[derive(Clone)]
 pub enum Message {
     LoadPressed,
+    SettingsPressed,
     VaultSelected(String),
     PwDialogMessage(login::Message),
 }
@@ -81,11 +82,22 @@ impl LoginPage {
         .spacing(15)
         .align_x(Alignment::Center);
 
+        let settings = button("Settings")
+            .on_press(Message::SettingsPressed)
+            .width(Length::Fixed(100.0));
+
         let main_page = container(column![
-            header,
-            space().height(Length::FillPortion(1)),
-            controls,
-            space().height(Length::FillPortion(1)),
+            container(column![
+                header,
+                space().height(Length::FillPortion(1)),
+                controls,
+                space().height(Length::FillPortion(1)),
+            ])
+            .width(Length::Fill)
+            .align_x(Alignment::Center),
+            container(settings)
+                .width(Length::Fill)
+                .align_x(Alignment::Start),
         ])
         .width(Length::Fill)
         .height(Length::Fill)
@@ -162,6 +174,13 @@ impl LoginPage {
                         }
                     }
                 }
+            }
+            Message::SettingsPressed => {
+                return Ok((
+                    Page::Settings(AppSettingsPage::new(self.vault_entries.clone())).into(),
+                    None,
+                    Task::none(),
+                ));
             }
         }
 

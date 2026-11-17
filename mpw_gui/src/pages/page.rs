@@ -1,8 +1,8 @@
 use crate::dialogs::message::MessageDialog;
-use crate::pages::login;
+use crate::pages::{app_settings, login, passwords};
 use crate::pages::login::LoginPage;
-use crate::pages::passwords;
 use crate::pages::passwords::Passwords;
+use crate::pages::app_settings::AppSettingsPage;
 use iced::{Element, Task};
 
 #[macro_export]
@@ -15,12 +15,14 @@ macro_rules! no_op {
 pub enum Page {
     Login(LoginPage),
     Vault(Passwords),
+    Settings(AppSettingsPage),
 }
 
 #[derive(Clone)]
 pub enum PageEvent {
     Login(login::Message),
     Passwords(passwords::Message),
+    Settings(app_settings::Message),
 }
 
 pub type PageMessage<M> = Result<(Option<Page>, Option<MessageDialog>, Task<M>), MessageDialog>;
@@ -37,6 +39,7 @@ impl Page {
         match self {
             Page::Login(page) => page.view().map(PageEvent::Login),
             Page::Vault(page) => page.view().map(PageEvent::Passwords),
+            Page::Settings(page) => page.view().map(PageEvent::Settings),
         }
     }
 
@@ -50,6 +53,10 @@ impl Page {
                 let (next_page, msg, task) = page.update(msg)?;
                 Ok((next_page, msg, task.map(PageEvent::Passwords)))
             }
+            (Page::Settings(page), PageEvent::Settings(msg)) => {
+                let (next_page, msg, task) = page.update(msg)?;
+                Ok((next_page, msg, task.map(PageEvent::Settings)))
+            }
 
             _ => no_op!(),
         }
@@ -59,6 +66,7 @@ impl Page {
         match self {
             Page::Login(page) => page.handle_escape(),
             Page::Vault(page) => page.handle_escape(),
+            Page::Settings(page) => page.handle_escape(),
         }
     }
 }
