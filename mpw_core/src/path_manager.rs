@@ -31,7 +31,7 @@ pub enum PathManagerError {
 }
 
 /// Holds named file system entries.
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct PathManager {
     entries: HashMap<String, PathBuf>,
     default: Option<String>,
