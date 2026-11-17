@@ -14,7 +14,7 @@ use iced::Element;
 #[derive(Clone)]
 enum Message {
     Page(page::PageEvent),
-    Dialog,
+    Dialog(dialogs::message::Message),
     EscapePressed,
     NoOp,
 }
@@ -36,7 +36,7 @@ impl State {
 fn view(state: &State) -> Element<'_, Message> {
     let page_view = state.current_page.view().map(Message::Page);
     if let Some(dialog) = &state.info_dialog {
-        iced::widget::stack![page_view, dialog.view().map(|_| Message::Dialog)].into()
+        iced::widget::stack![page_view, dialog.view().map(Message::Dialog)].into()
     } else {
         page_view
     }
@@ -70,8 +70,13 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
                 Task::none()
             }
         },
-        Message::Dialog => {
-            state.info_dialog = None;
+        Message::Dialog(msg) => {
+            if let Some(dialog) = &mut state.info_dialog
+                && dialog.update(msg)
+            {
+                state.info_dialog = None;
+            }
+
             Task::none()
         }
         Message::EscapePressed => {

@@ -38,7 +38,7 @@ impl Passwords {
     pub fn update(&mut self, message: Message) -> PageMessage<Message> {
         match message {
             Message::Quit => {
-                self.vault.lock().expect("error locking");
+                self.vault.lock()?;
                 Ok((Some(Page::Login(LoginPage::new())), Task::none()))
             }
         }
