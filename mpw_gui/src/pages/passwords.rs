@@ -38,8 +38,12 @@ impl Passwords {
     pub fn update(&mut self, message: Message) -> PageMessage<Message> {
         match message {
             Message::Quit => {
-                self.vault.lock()?;
-                Ok((Some(Page::Login(LoginPage::new())), Task::none()))
+                let err = self
+                    .vault
+                    .lock()
+                    .map_or_else(|err| Some(err.into()), |_| None);
+                let (page, _) = LoginPage::new(); //TODO enable passing multiple messages?
+                Ok((Some(Page::Login(page)), err, Task::none()))
             }
         }
     }

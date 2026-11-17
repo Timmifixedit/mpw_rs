@@ -7,7 +7,8 @@ use crate::pages::passwords::Passwords;
 use iced::widget::{button, container, pick_list, stack, text};
 use iced::{Alignment, Element, Font, Length, Task};
 use mpw_core::config::get_config_path;
-use mpw_core::path_manager::PathManager;
+use mpw_core::path_manager::{CreationError, PathManager};
+use std::path::PathBuf;
 
 #[derive(Clone)]
 pub enum Message {
@@ -25,28 +26,41 @@ pub struct LoginPage {
 }
 
 impl LoginPage {
-    pub fn new() -> Self {
-        let entries = get_config_path().map_or_else(
-            || {
-                eprintln!(
-                    "Could not get config path. You won't be able to save your vault locations"
-                );
-                PathManager::default()
-            },
-            |path| {
-                PathManager::load(&path).unwrap_or_else(|e| {
-                    eprintln!("Could not load config file: {}", e);
+    pub fn new() -> (Self, Option<MessageDialog>) {
+        let mut message = None;
+        let vault_entries = match get_config_path() {
+            Ok(path) => match PathManager::load(&path) {
+                Ok(pm) => pm,
+                Err(e) => {
+                    message = Some(MessageDialog::new(
+                        format!("Could not load config file ({}): {}", path.display(), e),
+                        MessageType::Warning,
+                    ));
                     PathManager::default()
-                })
+                }
             },
-        );
-        LoginPage {
-            selected_vault: entries.get_default_name().map(|name| name.to_owned()),
-            vault_entries: entries,
-            show_pw_dialog: false,
-            pw_dialog: login::LoginDialog::new(),
-            vault: None,
-        }
+            Err(e) => {
+                message = Some(MessageDialog::new(
+                    format!(
+                        "Could not find or create config file: '{}'. You won't be able to save your vault locations",
+                        e
+                    ),
+                    MessageType::Error,
+                ));
+                PathManager::default()
+            }
+        };
+
+        (
+            LoginPage {
+                selected_vault: vault_entries.get_default_name().map(|name| name.to_owned()),
+                vault_entries,
+                show_pw_dialog: false,
+                pw_dialog: login::LoginDialog::new(),
+                vault: None,
+            },
+            message,
+        )
     }
 
     pub fn view(&self) -> Element<'_, Message> {
@@ -116,7 +130,7 @@ impl LoginPage {
                         )
                         .map_err(|err| MessageDialog::new(err.to_string(), MessageType::Error))?,
                     );
-                    return Ok((None, self.open_pw_dialog()));
+                    return Ok((None, None, self.open_pw_dialog()));
                 }
             }
             Message::VaultSelected(v_name) => {
@@ -142,6 +156,7 @@ impl LoginPage {
                                         .expect("Invalid state, a vault should be present"),
                                 ))
                                 .into(),
+                                None,
                                 Task::none(),
                             ));
                         }

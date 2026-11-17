@@ -24,9 +24,10 @@ struct State {
 
 impl State {
     pub fn new() -> Self {
+        let (page, error) = LoginPage::new();
         State {
-            current_page: Page::Login(LoginPage::new()),
-            info_dialog: None,
+            current_page: Page::Login(page),
+            info_dialog: error,
         }
     }
 }
@@ -56,11 +57,12 @@ fn events(_: &State) -> Subscription<Message> {
 fn update(state: &mut State, message: Message) -> Task<Message> {
     match message {
         Message::Page(pe) => match state.current_page.update(pe) {
-            Ok((new_page, task)) => {
+            Ok((new_page, dialog, task)) => {
                 if let Some(page) = new_page {
                     state.current_page = page;
                 }
 
+                state.info_dialog = dialog;
                 task.map(Message::Page)
             }
             Err(err) => {

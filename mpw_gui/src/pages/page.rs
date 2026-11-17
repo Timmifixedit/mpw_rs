@@ -8,7 +8,7 @@ use iced::{Element, Task};
 #[macro_export]
 macro_rules! no_op {
     () => {
-        Ok((None, Task::none()))
+        Ok((None, None, Task::none()))
     };
 }
 
@@ -23,8 +23,8 @@ pub enum PageEvent {
     Passwords(passwords::Message),
 }
 
-pub type PageMessage<M> = Result<(Option<Page>, Task<M>), MessageDialog>;
-type PageResult = Result<(Option<Page>, Task<PageEvent>), MessageDialog>;
+pub type PageMessage<M> = Result<(Option<Page>, Option<MessageDialog>, Task<M>), MessageDialog>;
+type PageResult = Result<(Option<Page>, Option<MessageDialog>, Task<PageEvent>), MessageDialog>;
 
 impl<M> From<MessageDialog> for PageMessage<M> {
     fn from(value: MessageDialog) -> Self {
@@ -43,12 +43,12 @@ impl Page {
     pub fn update(&mut self, event: PageEvent) -> PageResult {
         match (self, event) {
             (Page::Login(page), PageEvent::Login(msg)) => {
-                let (next_page, task) = page.update(msg)?;
-                Ok((next_page, task.map(PageEvent::Login)))
+                let (next_page, msg, task) = page.update(msg)?;
+                Ok((next_page, msg, task.map(PageEvent::Login)))
             }
             (Page::Vault(page), PageEvent::Passwords(msg)) => {
-                let (next_page, task) = page.update(msg)?;
-                Ok((next_page, task.map(PageEvent::Passwords)))
+                let (next_page, msg, task) = page.update(msg)?;
+                Ok((next_page, msg, task.map(PageEvent::Passwords)))
             }
 
             _ => no_op!(),

@@ -7,7 +7,6 @@ mod mv;
 mod remove;
 
 use crate::command_processor::CommandProcessor;
-use mpw_core::config::get_config_path;
 use crate::print_if_error;
 use crate::vault_loader::completers::CompleterImpl;
 use crate::vault_processor::VaultProcessor;
@@ -16,11 +15,12 @@ use clap::{Parser, Subcommand};
 use handler::{Followup, Handler, SecretHandler};
 use list::List;
 use load::Load;
+use mpw_core::config::get_config_path;
 use mpw_core::path_manager::PathManager;
 use mv::Move;
 use remove::Remove;
-use rustyline::completion::Completer;
 use rustyline::Context;
+use rustyline::completion::Completer;
 use secure_string::SecureString;
 use std::fmt::{Display, Formatter};
 use std::io::Write;
@@ -100,9 +100,9 @@ impl VaultLoader {
 impl VaultLoader {
     pub fn new() -> VaultLoader {
         let mut entries = get_config_path().map_or_else(
-            || {
+            |err| {
                 eprintln!(
-                    "Could not get config path. You won't be able to save your vault locations"
+                    "Could not get config path: '{}'. You won't be able to save your vault locations", err
                 );
                 PathManager::default()
             },
@@ -135,7 +135,7 @@ impl VaultLoader {
 impl Drop for VaultLoader {
     fn drop(&mut self) {
         let serialized = self.entries.to_json().expect("Serialization failed");
-        let config = get_config_path();
+        let config = get_config_path().ok();
         if config.is_none() {
             eprintln!("Could not save config file");
             return;

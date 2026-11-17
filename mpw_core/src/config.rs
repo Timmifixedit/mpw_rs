@@ -3,7 +3,7 @@ const CONFIG_NAME: &str = "config.vlt";
 use confy;
 use std::path::PathBuf;
 
-pub fn get_config_path() -> Option<PathBuf> {
+pub fn get_config_path() -> Result<PathBuf, String> {
     let config_path = confy::get_configuration_file_path(APP_NAME, Some(CONFIG_NAME)).map_or_else(
         |err| {
             eprintln!("Error getting config path: {}", err);
@@ -15,20 +15,19 @@ pub fn get_config_path() -> Option<PathBuf> {
         },
         |path| path.with_extension(""),
     );
+    let config_dir = config_path.parent().ok_or("Invalid config path")?;
     if !config_path.exists() {
         println!("Config file {} does not exist", config_path.display());
         println!("Creating new config file");
-        std::fs::File::create(&config_path).map_or_else(
-            |e| {
-                eprintln!("Error creating config file: {}", e);
-                None
-            },
-            |_| {
-                println!("Config file created");
-                Some(config_path)
-            },
-        )
+        if !config_dir.exists() {
+            std::fs::create_dir_all(config_dir).map_err(|e|e.to_string())?;
+        }
+
+        std::fs::File::create(&config_path).map_err(|e|e.to_string())?;
+        println!("Config file created");
+        Ok(config_path)
+
     } else {
-        Some(config_path)
+        Ok(config_path)
     }
 }
