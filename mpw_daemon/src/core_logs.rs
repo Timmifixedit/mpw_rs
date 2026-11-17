@@ -2,7 +2,7 @@ use crate::core_logs::Severity::{Error, Info, Warn};
 use crate::messages::VaultError;
 use log::{error, info, warn};
 use mpw_core::error::MpwError;
-use mpw_core::vault::VaultError as CoreError;
+use mpw_core::vault::{EncryptionNoOp, VaultError as CoreError};
 
 #[derive(PartialOrd, PartialEq, Eq, Ord)]
 pub enum Severity {
@@ -13,20 +13,17 @@ pub enum Severity {
 
 pub fn vault_error_severity(err: &CoreError) -> Severity {
     match err {
-        CoreError::VaultDirNotFound(_)
-        | CoreError::VaultFileNotFound(_)
-        | CoreError::IoError(_) => Error,
+        CoreError::Fatal(_) | CoreError::IoError(_) => Error,
 
-        CoreError::PasswordNotFound(_)
-        | CoreError::InvalidPwName(_)
-        | CoreError::AlreadyExists(_)
+        CoreError::PasswordError(_)
         | CoreError::InvalidParameter(_)
-        | CoreError::VaultItem { .. }
+        | CoreError::ItemSkipped(EncryptionNoOp::VaultItem { .. })
         | CoreError::VaultLocked
         | CoreError::PathManagerError(_)
-        | CoreError::ProtectedItem(_) => Warn,
+        | CoreError::ItemSkipped(EncryptionNoOp::ProtectedItem(_)) => Warn,
 
-        CoreError::AlreadyEncrypted(_) | CoreError::NotEncrypted(_) => Info,
+        CoreError::ItemSkipped(EncryptionNoOp::NotEncrypted(_))
+        | CoreError::ItemSkipped(EncryptionNoOp::AlreadyEncrypted(_)) => Info,
 
         CoreError::CoreError(e) => match e {
             MpwError::IoError(_)
