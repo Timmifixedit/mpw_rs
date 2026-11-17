@@ -1,5 +1,5 @@
-use crate::login::LoginPage;
-use crate::page::{Page, PageMessage};
+use crate::pages::login::LoginPage;
+use crate::pages::page::{Page, PageMessage};
 use iced::widget::{button, container, text};
 use iced::{Alignment, Element, Length, Task, alignment};
 use mpw_core::vault::Vault;

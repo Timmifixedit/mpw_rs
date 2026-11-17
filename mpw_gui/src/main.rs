@@ -1,19 +1,17 @@
 pub mod controls;
 pub mod dialogs;
-mod login;
-pub mod page;
-pub mod passwords;
+mod pages;
 
 use iced::{Result, Subscription, Task, Theme};
 
 use crate::dialogs::message::MessageDialog;
-use crate::login::LoginPage;
-use crate::page::Page;
+use crate::pages::login::LoginPage;
+use crate::pages::page::Page;
 use iced::Element;
 
 #[derive(Clone)]
 enum Message {
-    Page(page::PageEvent),
+    Page(pages::page::PageEvent),
     Dialog(dialogs::message::Message),
     EscapePressed,
     NoOp,

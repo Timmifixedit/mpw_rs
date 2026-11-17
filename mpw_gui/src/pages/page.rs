@@ -1,7 +1,8 @@
 use crate::dialogs::message::MessageDialog;
-use crate::login::LoginPage;
-use crate::passwords::Passwords;
-use crate::{login, passwords};
+use crate::pages::login;
+use crate::pages::login::LoginPage;
+use crate::pages::passwords;
+use crate::pages::passwords::Passwords;
 use iced::{Element, Task};
 
 #[macro_export]
@@ -50,7 +51,7 @@ impl Page {
                 Ok((next_page, task.map(PageEvent::Passwords)))
             }
 
-            _ => no_op!()
+            _ => no_op!(),
         }
     }
 

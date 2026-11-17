@@ -2,8 +2,8 @@ use crate::dialogs::login;
 use crate::dialogs::login::DialogResult;
 use crate::dialogs::message::{MessageDialog, MessageType};
 use crate::no_op;
-use crate::page::{Page, PageMessage};
-use crate::passwords::Passwords;
+use crate::pages::page::{Page, PageMessage};
+use crate::pages::passwords::Passwords;
 use iced::widget::{button, container, pick_list, stack, text};
 use iced::{Alignment, Element, Font, Length, Task};
 use mpw_core::config::get_config_path;
@@ -132,15 +132,18 @@ impl LoginPage {
                             let res = self.try_unlock_vault();
                             if res.is_err_and(|err| matches!(err, CoreError(WrongPassword))) {
                                 self.pw_dialog.set_error("Wrong password");
-                                return no_op!()
+                                return no_op!();
                             }
 
-                            return Ok((Page::Vault(Passwords::new(
-                                self.vault
-                                    .take()
-                                    .expect("Invalid state, a vault should be present"),
-                            ))
-                            .into(), Task::none()));
+                            return Ok((
+                                Page::Vault(Passwords::new(
+                                    self.vault
+                                        .take()
+                                        .expect("Invalid state, a vault should be present"),
+                                ))
+                                .into(),
+                                Task::none(),
+                            ));
                         }
                     }
                 }
