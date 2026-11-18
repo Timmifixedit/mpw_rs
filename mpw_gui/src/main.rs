@@ -4,22 +4,23 @@ mod pages;
 
 use iced::{Result, Subscription, Task, Theme};
 
-use crate::dialogs::message::MessageDialog;
+use crate::dialogs::base::Dialog;
 use crate::pages::login::LoginPage;
 use crate::pages::page::Page;
 use iced::Element;
+use dialogs::base::DialogResult;
 
 #[derive(Clone)]
 enum Message {
     Page(pages::page::PageEvent),
-    Dialog(dialogs::message::Message),
+    Dialog(dialogs::base::Message),
     EscapePressed,
     NoOp,
 }
 
 struct State {
     current_page: Page,
-    info_dialog: Option<MessageDialog>,
+    info_dialog: Option<Dialog>,
 }
 
 impl State {
@@ -27,7 +28,7 @@ impl State {
         let (page, error) = LoginPage::new();
         State {
             current_page: Page::Login(page),
-            info_dialog: error,
+            info_dialog: error.map(|d|d.into())
         }
     }
 }
@@ -66,15 +67,23 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
                 task.map(Message::Page)
             }
             Err(err) => {
-                state.info_dialog = Some(err);
+                state.info_dialog = Some(err.into());
                 Task::none()
             }
         },
         Message::Dialog(msg) => {
-            if let Some(dialog) = &mut state.info_dialog
-                && dialog.update(msg)
-            {
-                state.info_dialog = None;
+            if let Some(dialog) = &mut state.info_dialog {
+                match dialog.update(msg) {
+                    DialogResult::Confirmation(res) => {
+                        state.current_page.react_to_dialog(res);
+                        state.info_dialog = None;
+                    }
+                    DialogResult::Message(close) => {
+                        if close {
+                            state.info_dialog = None;
+                        }
+                    }
+                }
             }
 
             Task::none()

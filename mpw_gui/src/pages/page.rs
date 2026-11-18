@@ -4,6 +4,8 @@ use crate::pages::login::LoginPage;
 use crate::pages::passwords::Passwords;
 use crate::pages::app_settings::AppSettingsPage;
 use iced::{Element, Task};
+use crate::dialogs;
+use crate::dialogs::base::Dialog;
 
 #[macro_export]
 macro_rules! no_op {
@@ -25,8 +27,8 @@ pub enum PageEvent {
     Settings(app_settings::Message),
 }
 
-pub type PageMessage<M> = Result<(Option<Page>, Option<MessageDialog>, Task<M>), MessageDialog>;
-type PageResult = Result<(Option<Page>, Option<MessageDialog>, Task<PageEvent>), MessageDialog>;
+pub type PageMessage<M> = Result<(Option<Page>, Option<Dialog>, Task<M>), MessageDialog>;
+type PageResult = Result<(Option<Page>, Option<Dialog>, Task<PageEvent>), MessageDialog>;
 
 impl<M> From<MessageDialog> for PageMessage<M> {
     fn from(value: MessageDialog) -> Self {
@@ -67,6 +69,13 @@ impl Page {
             Page::Login(page) => page.handle_escape(),
             Page::Vault(page) => page.handle_escape(),
             Page::Settings(page) => page.handle_escape(),
+        }
+    }
+
+    pub fn react_to_dialog(&mut self, res: dialogs::confirmation::DialogResult) {
+        match self {
+            Page::Settings(page) => page.react_to_dialog(res),
+            _ => {}
         }
     }
 }

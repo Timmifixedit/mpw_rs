@@ -2,8 +2,9 @@ use crate::controls::list_box;
 use crate::controls::list_box::ListBox;
 use crate::controls::vault_details;
 use crate::controls::vault_details::VaultDetailsView;
-use crate::no_op;
+use crate::dialogs::confirmation::{ConfirmationDialog, DialogResult};
 use crate::pages::page::PageMessage;
+use crate::{dialogs, no_op};
 use iced::Element;
 use iced::Task;
 use iced::widget::{button, column, container, row, space, text_input};
@@ -115,9 +116,18 @@ impl AppSettingsPage {
             }
             Message::AddPressed => {}
             Message::RemovePressed => {
-                if let Some((id, name)) = self.list_view.selected_item() {
-                    self.vault_entries.remove(name);
-                    self.list_view.remove_entry(&id);
+                if let Some((_, name)) = self.list_view.selected_item() {
+                    return Ok((
+                        None,
+                        Some(
+                            ConfirmationDialog::new(
+                                format!("Remove vault entry '{name}'?").into(),
+                                false,
+                            )
+                            .into(),
+                        ),
+                        Task::none(),
+                    ));
                 }
             }
             Message::SearchChanged(search_string) => {
@@ -129,5 +139,14 @@ impl AppSettingsPage {
 
     pub fn handle_escape(&mut self) {
         self.list_view.unselect();
+    }
+
+    pub fn react_to_dialog(&mut self, res: DialogResult) {
+        if matches!(res, DialogResult::Yes)
+            && let Some((id, name)) = self.list_view.selected_item()
+        {
+            self.vault_entries.remove(name);
+            self.list_view.remove_entry(&id);
+        }
     }
 }
