@@ -2,6 +2,7 @@ use crate::dialogs::base::make_dialog_flex;
 use iced::Length::Fixed;
 use iced::widget::{Text, button, container, text, text_editor};
 use iced::{Element, Length, alignment};
+use mpw_core::path_manager::PathManagerError;
 use mpw_core::vault::{EncryptionNoOp, VaultError, VaultErrorStack};
 
 #[derive(Debug, Clone)]
@@ -54,6 +55,12 @@ impl From<VaultErrorStack> for MessageDialog {
             });
 
         MessageDialog::new(message, m_type)
+    }
+}
+
+impl From<PathManagerError> for MessageDialog {
+    fn from(value: PathManagerError) -> Self {
+        MessageDialog::new(value.to_string(), MessageType::Error)
     }
 }
 

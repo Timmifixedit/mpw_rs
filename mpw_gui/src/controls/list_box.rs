@@ -1,5 +1,5 @@
 use iced::widget::{button, column, container, scrollable};
-use iced::{Length, Theme};
+use iced::{Element, Length, Theme};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
@@ -25,7 +25,7 @@ impl<T: AsRef<str>> ListBox<T> {
         }
     }
 
-    pub fn view(&self) -> iced::Element<'_, Message> {
+    pub fn view(&self) -> Element<'_, Message> {
         let items = column(self.items.iter().map(|(id, item)| {
             let selected = self.selected.as_ref() == Some(id);
             iced::widget::button(item.as_ref())
@@ -44,7 +44,7 @@ impl<T: AsRef<str>> ListBox<T> {
         }))
         .spacing(2)
         .width(Length::Fill);
-        let items = scrollable(items);
+        let items = container(scrollable(items));
         items.into()
     }
 
@@ -54,6 +54,15 @@ impl<T: AsRef<str>> ListBox<T> {
                 self.selected = Some(id);
             }
         }
+    }
+
+    pub fn update_entry(&mut self, id: &iced::widget::Id, item: T) {
+        self.items.insert(id.clone(), item);
+    }
+
+    pub fn remove_entry(&mut self, id: &iced::widget::Id) {
+        self.unselect();
+        self.items.remove(id);
     }
 
     pub fn selected_item(&self) -> Option<(iced::widget::Id, &T)> {

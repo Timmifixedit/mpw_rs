@@ -82,7 +82,7 @@ impl LoginPage {
         .spacing(15)
         .align_x(Alignment::Center);
 
-        let settings = button("Settings")
+        let settings = button(container(text("Settings")).align_x(Alignment::Center))
             .on_press(Message::SettingsPressed)
             .width(Length::Fixed(100.0));
 
