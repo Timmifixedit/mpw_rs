@@ -25,23 +25,28 @@ impl<T: AsRef<str>> ListBox<T> {
         }
     }
 
-    pub fn view(&self) -> Element<'_, Message> {
-        let items = column(self.items.iter().map(|(id, item)| {
-            let selected = self.selected.as_ref() == Some(id);
-            iced::widget::button(item.as_ref())
-                .padding(10)
-                .width(Length::Fill)
-                .on_press(Message::ItemSelected(id.clone()))
-                .style(move |theme: &Theme, status| {
-                    let palette = theme.extended_palette();
-                    if selected {
-                        button::Style::default().with_background(palette.primary.base.color)
-                    } else {
-                        button::secondary(theme, status)
-                    }
-                })
-                .into()
-        }))
+    pub fn view<F: Fn(&T) -> bool>(&self, filter: Option<F>) -> Element<'_, Message> {
+        let items = column(
+            self.items
+                .iter()
+                .filter(|(_, item)| filter.as_ref().map_or(true, |f| f(item)))
+                .map(|(id, item)| {
+                    let selected = self.selected.as_ref() == Some(id);
+                    iced::widget::button(item.as_ref())
+                        .padding(10)
+                        .width(Length::Fill)
+                        .on_press(Message::ItemSelected(id.clone()))
+                        .style(move |theme: &Theme, status| {
+                            let palette = theme.extended_palette();
+                            if selected {
+                                button::Style::default().with_background(palette.primary.base.color)
+                            } else {
+                                button::secondary(theme, status)
+                            }
+                        })
+                        .into()
+                }),
+        )
         .spacing(2)
         .width(Length::Fill);
         let items = container(scrollable(items));

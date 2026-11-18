@@ -14,6 +14,7 @@ use mpw_core::path_manager::PathManager;
 pub enum Message {
     AddPressed,
     RemovePressed,
+    SearchChanged(String),
     ListBox(list_box::Message),
     DetailView(vault_details::Message),
     ClosePressed,
@@ -42,7 +43,9 @@ impl AppSettingsPage {
             column![
                 container(
                     row![
-                        text_input("Search", &self.search_string).width(Length::Fixed(300.0)),
+                        text_input("Search", &self.search_string)
+                            .width(Length::Fixed(300.0))
+                            .on_input(Message::SearchChanged),
                         button("Add").on_press(Message::AddPressed),
                         button("Remove").on_press(Message::RemovePressed)
                     ]
@@ -50,8 +53,14 @@ impl AppSettingsPage {
                 )
                 .align_x(Alignment::Start),
                 row![
-                    container(self.list_view.view().map(Message::ListBox))
-                        .width(Length::FillPortion(2)),
+                    container(
+                        self.list_view
+                            .view(Some(|name: &String| name
+                                .to_lowercase()
+                                .contains(&self.search_string.to_lowercase())))
+                            .map(Message::ListBox)
+                    )
+                    .width(Length::FillPortion(2)),
                     if self.list_view.selected_item().is_some() {
                         container(self.vault_item_detail.view().map(Message::DetailView))
                             .width(Length::FillPortion(1))
@@ -110,6 +119,9 @@ impl AppSettingsPage {
                     self.vault_entries.remove(name);
                     self.list_view.remove_entry(&id);
                 }
+            }
+            Message::SearchChanged(search_string) => {
+                self.search_string = search_string;
             }
         }
         no_op!()
