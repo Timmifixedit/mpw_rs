@@ -1,5 +1,6 @@
-use iced::widget::{button, column, container, space, text, text_input};
+use iced::widget::{button, column, container, row, space, text, text_input};
 use iced::{Alignment, Element};
+use rfd::FileDialog;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
@@ -33,9 +34,13 @@ impl VaultDetailsView {
                     .on_input(Message::NameChanged)
                     .size(16),
                 text("Path to Vault").align_x(Alignment::Start),
-                text_input("Enter a path", &self.path.to_string_lossy())
-                    .on_input(|val| Message::PathChanged(val.into()))
-                    .size(16),
+                row![
+                    text_input("Enter a path", &self.path.to_string_lossy())
+                        .on_input(|val| Message::PathChanged(val.into()))
+                        .size(16),
+                    button("Choose").on_press(Message::PathChooserPressed)
+                ]
+                .spacing(10),
                 if self.modified {
                     container(button("Save").on_press(Message::SavePressed))
                 } else {
@@ -63,7 +68,15 @@ impl VaultDetailsView {
                 self.modified = false;
                 return true;
             }
-            Message::PathChooserPressed => {}
+            Message::PathChooserPressed => {
+                if let Some(folder) = FileDialog::new()
+                    .set_can_create_directories(true)
+                    .pick_folder()
+                {
+                    self.path = folder;
+                    self.modified = true;
+                }
+            }
         }
 
         false

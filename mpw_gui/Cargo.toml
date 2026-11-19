@@ -7,3 +7,4 @@ edition = "2024"
 iced = {version = "0.14.0"}
 mpw_core = { path = "../mpw_core" }
 secure-string = "0.3.0"
+rfd = "0.18.0"
