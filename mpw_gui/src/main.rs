@@ -6,9 +6,9 @@ use iced::{Result, Subscription, Task, Theme};
 
 use crate::dialogs::base::Dialog;
 use crate::pages::login::LoginPage;
-use crate::pages::page::Page;
-use iced::Element;
+use crate::pages::page::{Page, PageResult};
 use dialogs::base::DialogResult;
+use iced::Element;
 
 #[derive(Clone)]
 enum Message {
@@ -28,7 +28,7 @@ impl State {
         let (page, error) = LoginPage::new();
         State {
             current_page: Page::Login(page),
-            info_dialog: error.map(|d|d.into())
+            info_dialog: error.map(|d| d.into()),
         }
     }
 }
@@ -55,28 +55,38 @@ fn events(_: &State) -> Subscription<Message> {
     })
 }
 
+fn handle_page_result(result: PageResult, state: &mut State) -> Task<Message> {
+    match result {
+        Ok((new_page, dialog, task)) => {
+            if let Some(page) = new_page {
+                state.current_page = page;
+            }
+
+            state.info_dialog = dialog;
+            task.map(Message::Page)
+        }
+        Err(err) => {
+            state.info_dialog = Some(err.into());
+            Task::none()
+        }
+    }
+}
+
 fn update(state: &mut State, message: Message) -> Task<Message> {
     match message {
-        Message::Page(pe) => match state.current_page.update(pe) {
-            Ok((new_page, dialog, task)) => {
-                if let Some(page) = new_page {
-                    state.current_page = page;
-                }
-
-                state.info_dialog = dialog;
-                task.map(Message::Page)
-            }
-            Err(err) => {
-                state.info_dialog = Some(err.into());
-                Task::none()
-            }
-        },
+        Message::Page(pe) => handle_page_result(state.current_page.update(pe), state),
         Message::Dialog(msg) => {
             if let Some(dialog) = &mut state.info_dialog {
                 match dialog.update(msg) {
                     DialogResult::Confirmation(res) => {
-                        state.current_page.react_to_dialog(res);
-                        state.info_dialog = None;
+                        let res =
+                            handle_page_result(state.current_page.react_to_dialog(res), state);
+                        if let Some(d) = state.info_dialog.as_ref()
+                            && matches!(d, Dialog::Confirmation(_))
+                        {
+                            state.info_dialog = None;
+                        }
+                        return res;
                     }
                     DialogResult::Message(close) => {
                         if close {

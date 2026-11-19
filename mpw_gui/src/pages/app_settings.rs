@@ -3,13 +3,16 @@ use crate::controls::list_box::ListBox;
 use crate::controls::vault_details;
 use crate::controls::vault_details::VaultDetailsView;
 use crate::dialogs::confirmation::{ConfirmationDialog, DialogResult};
+use crate::dialogs::message::{MessageDialog, MessageType};
 use crate::pages::page::PageMessage;
-use crate::{dialogs, no_op};
+use crate::no_op;
 use iced::Element;
 use iced::Task;
 use iced::widget::{button, column, container, row, space, text_input};
 use iced::{Alignment, Length};
+use mpw_core::config::get_config_path;
 use mpw_core::path_manager::PathManager;
+use std::path::Path;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -81,6 +84,16 @@ impl AppSettingsPage {
             .into()
     }
 
+    fn save_entries(&mut self) -> Result<(), MessageDialog> {
+        self.vault_entries
+            .save(
+                get_config_path()
+                    .map_err(|msg| MessageDialog::new(msg, MessageType::Error))?
+                    .as_path(),
+            )
+            .map_err(|err| MessageDialog::new(err.to_string(), MessageType::Error))
+    }
+
     pub fn update(&mut self, message: Message) -> PageMessage<Message> {
         match message {
             Message::ListBox(msg) => {
@@ -90,7 +103,7 @@ impl AppSettingsPage {
                         name.clone(),
                         self.vault_entries
                             .get(name)
-                            .expect("The entry should exist")
+                            .unwrap_or(Path::new(""))
                             .to_owned(),
                     );
                 }
@@ -112,9 +125,10 @@ impl AppSettingsPage {
                         self.list_view
                             .update_entry(&id, self.vault_item_detail.get_name().to_string());
                     }
+                    self.save_entries()?;
                 }
             }
-            Message::AddPressed => {}
+            Message::AddPressed => self.list_view.add_item("".into()),
             Message::RemovePressed => {
                 if let Some((_, name)) = self.list_view.selected_item() {
                     return Ok((
@@ -141,12 +155,15 @@ impl AppSettingsPage {
         self.list_view.unselect();
     }
 
-    pub fn react_to_dialog(&mut self, res: DialogResult) {
+    pub fn react_to_dialog(&mut self, res: DialogResult) -> Result<(), MessageDialog> {
         if matches!(res, DialogResult::Yes)
             && let Some((id, name)) = self.list_view.selected_item()
         {
             self.vault_entries.remove(name);
             self.list_view.remove_entry(&id);
+            self.save_entries()
+        } else {
+            Ok(())
         }
     }
 }

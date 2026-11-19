@@ -1,11 +1,11 @@
-use crate::dialogs::message::MessageDialog;
-use crate::pages::{app_settings, login, passwords};
-use crate::pages::login::LoginPage;
-use crate::pages::passwords::Passwords;
-use crate::pages::app_settings::AppSettingsPage;
-use iced::{Element, Task};
 use crate::dialogs;
 use crate::dialogs::base::Dialog;
+use crate::dialogs::message::MessageDialog;
+use crate::pages::app_settings::AppSettingsPage;
+use crate::pages::login::LoginPage;
+use crate::pages::passwords::Passwords;
+use crate::pages::{app_settings, login, passwords};
+use iced::{Element, Task};
 
 #[macro_export]
 macro_rules! no_op {
@@ -28,7 +28,7 @@ pub enum PageEvent {
 }
 
 pub type PageMessage<M> = Result<(Option<Page>, Option<Dialog>, Task<M>), MessageDialog>;
-type PageResult = Result<(Option<Page>, Option<Dialog>, Task<PageEvent>), MessageDialog>;
+pub type PageResult = Result<(Option<Page>, Option<Dialog>, Task<PageEvent>), MessageDialog>;
 
 impl<M> From<MessageDialog> for PageMessage<M> {
     fn from(value: MessageDialog) -> Self {
@@ -72,10 +72,12 @@ impl Page {
         }
     }
 
-    pub fn react_to_dialog(&mut self, res: dialogs::confirmation::DialogResult) {
+    pub fn react_to_dialog(&mut self, res: dialogs::confirmation::DialogResult) -> PageResult {
         match self {
-            Page::Settings(page) => page.react_to_dialog(res),
-            _ => {}
+            Page::Settings(page) => page
+                .react_to_dialog(res)
+                .map(|_| (None, None, Task::none())),
+            _ => no_op!(),
         }
     }
 }

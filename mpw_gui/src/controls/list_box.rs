@@ -65,6 +65,10 @@ impl<T: AsRef<str>> ListBox<T> {
         self.items.insert(id.clone(), item);
     }
 
+    pub fn add_item(&mut self, item: T) {
+        self.items.insert(iced::widget::Id::unique(), item);
+    }
+
     pub fn remove_entry(&mut self, id: &iced::widget::Id) {
         self.unselect();
         self.items.remove(id);
