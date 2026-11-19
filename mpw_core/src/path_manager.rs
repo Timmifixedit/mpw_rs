@@ -1,6 +1,7 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json;
 use std::collections::HashMap;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use thiserror;
 
@@ -136,10 +137,10 @@ impl PathManager {
     /// * `path`: path to save to
     /// # Errors
     /// * `CreationError`: if the file cannot be written
-    pub fn save(&self, path: &str) -> Result<(), CreationError> {
+    pub fn save(&self, path: &Path) -> Result<(), CreationError> {
         let file = std::fs::File::create(path)?;
-        let writer = std::io::BufWriter::new(file);
-        serde_json::to_writer(writer, &self.entries)?;
+        let mut writer = std::io::BufWriter::new(file);
+        writer.write_all(self.to_json()?.as_bytes())?;
         Ok(())
     }
 
@@ -394,6 +395,15 @@ mod tests {
         let json = pm.to_json().unwrap();
         let pm2 = PathManager::from_json(&json).unwrap();
         assert_eq!(pm.entries, pm2.entries);
+    }
+
+    #[test]
+    fn test_json_to_file_round_trip() {
+        let file = NamedTempFile::new().unwrap();
+        let pm = PathManager::new(generate_data());
+        pm.save(file.path()).unwrap();
+        let new_pm = PathManager::load(file.path()).unwrap();
+        assert_eq!(pm.entries, new_pm.entries);
     }
 
     #[test]
