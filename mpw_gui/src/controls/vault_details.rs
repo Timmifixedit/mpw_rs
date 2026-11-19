@@ -1,5 +1,5 @@
-use iced::widget::{button, column, container, row, space, text, text_input};
-use iced::{Alignment, Element};
+use iced::widget::{button, checkbox, column, container, row, space, text, text_input};
+use iced::{Alignment, Element, Length};
 use rfd::FileDialog;
 use std::path::PathBuf;
 
@@ -7,6 +7,7 @@ use std::path::PathBuf;
 pub enum Message {
     SavePressed,
     PathChooserPressed,
+    DefaultToggled(bool),
     NameChanged(String),
     PathChanged(PathBuf),
 }
@@ -14,6 +15,7 @@ pub enum Message {
 pub struct VaultDetailsView {
     name: String,
     path: PathBuf,
+    is_default: bool,
     modified: bool,
 }
 
@@ -22,6 +24,7 @@ impl VaultDetailsView {
         Self {
             name: String::new(),
             path: PathBuf::new(),
+            is_default: false,
             modified: false,
         }
     }
@@ -29,7 +32,16 @@ impl VaultDetailsView {
     pub fn view(&self) -> Element<'_, Message> {
         container(
             column![
-                text("Vault Name").align_x(Alignment::Start),
+                row![
+                    text("Vault Name").align_x(Alignment::Start),
+                    space().width(Length::Fill),
+                    row![
+                        checkbox(self.is_default).on_toggle(Message::DefaultToggled),
+                        text("default"),
+                    ]
+                    .spacing(5)
+                    .align_y(Alignment::Center)
+                ],
                 text_input("Enter a name", &self.name)
                     .on_input(Message::NameChanged)
                     .size(16),
@@ -68,6 +80,10 @@ impl VaultDetailsView {
                 self.modified = false;
                 return true;
             }
+            Message::DefaultToggled(default) => {
+                self.is_default = default;
+                self.modified = true;
+            }
             Message::PathChooserPressed => {
                 if let Some(folder) = FileDialog::new()
                     .set_can_create_directories(true)
@@ -82,9 +98,10 @@ impl VaultDetailsView {
         false
     }
 
-    pub fn update_info(&mut self, name: String, path: PathBuf) {
+    pub fn update_info(&mut self, name: String, path: PathBuf, default: bool) {
         self.name = name;
         self.path = path;
+        self.is_default = default;
         self.modified = false;
     }
 
@@ -94,5 +111,9 @@ impl VaultDetailsView {
 
     pub fn get_path(&self) -> &PathBuf {
         &self.path
+    }
+
+    pub fn is_default(&self) -> bool {
+        self.is_default
     }
 }

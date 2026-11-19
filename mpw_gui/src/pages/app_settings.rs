@@ -110,6 +110,7 @@ impl AppSettingsPage {
                             .get(name)
                             .unwrap_or(Path::new(""))
                             .to_owned(),
+                        self.vault_entries.is_default(name),
                     );
                 }
             }
@@ -127,11 +128,13 @@ impl AppSettingsPage {
                     if orig_name == self.vault_item_detail.get_name() {
                         self.vault_entries
                             .update(orig_name, self.vault_item_detail.get_path().into())?;
+                        self.vault_entries
+                            .update_default(orig_name, self.vault_item_detail.is_default())?;
                     } else {
                         self.vault_entries.add(
                             self.vault_item_detail.get_name().to_string(),
                             self.vault_item_detail.get_path().into(),
-                            false,
+                            self.vault_item_detail.is_default(),
                         )?;
                         self.vault_entries.remove(orig_name);
                         self.list_view
