@@ -2,10 +2,12 @@ use crate::controls::list_box;
 use crate::controls::list_box::ListBox;
 use crate::controls::vault_details;
 use crate::controls::vault_details::VaultDetailsView;
+use crate::dialogs::base::Dialog;
 use crate::dialogs::confirmation::{ConfirmationDialog, DialogResult};
 use crate::dialogs::message::{MessageDialog, MessageType};
-use crate::pages::page::PageMessage;
 use crate::no_op;
+use crate::pages::login::LoginPage;
+use crate::pages::page::{Page, PageMessage};
 use iced::Element;
 use iced::Task;
 use iced::widget::{button, column, container, row, space, text_input};
@@ -78,10 +80,13 @@ impl AppSettingsPage {
             .spacing(10),
         )
         .padding(10);
-        container(list_column)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .into()
+        container(column![
+            container(list_column)
+                .width(Length::Fill)
+                .height(Length::Fill),
+            container(button("Done").on_press(Message::ClosePressed)).padding(10)
+        ])
+        .into()
     }
 
     fn save_entries(&mut self) -> Result<(), MessageDialog> {
@@ -108,7 +113,14 @@ impl AppSettingsPage {
                     );
                 }
             }
-            Message::ClosePressed => {}
+            Message::ClosePressed => {
+                let (page, error) = LoginPage::new();
+                return Ok((
+                    Some(Page::Login(page)),
+                    error.map(Dialog::Message),
+                    Task::none(),
+                ));
+            }
             Message::DetailView(msg) => {
                 if self.vault_item_detail.update(msg) {
                     let (id, orig_name) = self.list_view.selected_item().expect("No selected item");

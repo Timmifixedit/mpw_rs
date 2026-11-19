@@ -101,7 +101,7 @@ impl LoginPage {
         ])
         .width(Length::Fill)
         .height(Length::Fill)
-        .padding(20)
+        .padding(10)
         .align_x(Alignment::Center);
         if self.show_pw_dialog {
             stack![
