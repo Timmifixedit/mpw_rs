@@ -1,6 +1,7 @@
-use crate::dialogs::base::make_dialog;
+use crate::dialogs::base::{Dialog, make_dialog};
+use crate::pages::page::{PageMessage, PageResult};
 use iced::widget::{button, column, container, row, space, text};
-use iced::{Alignment, Element, Length};
+use iced::{Alignment, Element, Task};
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -26,6 +27,14 @@ impl ConfirmationDialog {
             question,
             has_cancel,
         }
+    }
+
+    pub fn new_request<M>(question: String, has_cancel: bool) -> PageMessage<M> {
+        Ok((
+            None,
+            Some(Dialog::Confirmation(Self::new(question, has_cancel))),
+            Task::none(),
+        ))
     }
 
     pub fn view(&self) -> Element<'_, Message> {

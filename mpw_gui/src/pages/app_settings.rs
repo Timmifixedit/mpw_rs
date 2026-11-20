@@ -146,17 +146,10 @@ impl AppSettingsPage {
             Message::AddPressed => self.list_view.add_item("".into()),
             Message::RemovePressed => {
                 if let Some((_, name)) = self.list_view.selected_item() {
-                    return Ok((
-                        None,
-                        Some(
-                            ConfirmationDialog::new(
-                                format!("Remove vault entry '{name}'?").into(),
-                                false,
-                            )
-                            .into(),
-                        ),
-                        Task::none(),
-                    ));
+                    return ConfirmationDialog::new_request(
+                        format!("Remove vault entry '{name}'?").into(),
+                        false,
+                    );
                 }
             }
             Message::SearchChanged(search_string) => {
