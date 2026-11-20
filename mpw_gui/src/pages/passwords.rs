@@ -104,18 +104,26 @@ impl Passwords {
             Message::ListBox(msg) => {
                 self.pw_list.update(msg);
                 if let Some((_, name)) = self.pw_list.selected_item() {
-                    let (pw, login) = self.vault.retrieve_password(name)?;
-                    self.pw_info
-                        .update_info(name.clone(), pw, login.unwrap_or_default());
+                    if name == "" {
+                        self.pw_info.update_info("".into(), "".into(), "".into());
+                    } else {
+                        let (pw, login) = self.vault.retrieve_password(name)?;
+                        self.pw_info
+                            .update_info(name.clone(), pw, login.unwrap_or_default());
+                    }
                 }
             }
             Message::PwInfo(msg) => {
                 if self.pw_info.update(msg) {
-                    self.confirmation_action = ConfirmedAction::Update;
-                    return ConfirmationDialog::new_request(
-                        "Please confirm that you want to update the password.".into(),
-                        false,
-                    );
+                    if let Some((_, name)) = self.pw_list.selected_item() && name == "" {
+                        self.update_pw()?;
+                    } else {
+                        self.confirmation_action = ConfirmedAction::Update;
+                        return ConfirmationDialog::new_request(
+                            "Please confirm that you want to update the password.".into(),
+                            false,
+                        );
+                    }
                 }
             }
             Message::AddPressed => {
@@ -130,8 +138,9 @@ impl Passwords {
 
     fn update_pw(&mut self) -> Result<(), MessageDialog> {
         let (id, orig_name) = self.pw_list.selected_item().expect("No selected item");
+        let is_new_pw = orig_name == "";
         let new_name = self.pw_info.get_name();
-        if orig_name != new_name {
+        if orig_name != new_name && !is_new_pw {
             self.vault.rename_password(orig_name, new_name)?;
         }
 
@@ -141,7 +150,7 @@ impl Passwords {
             Some(self.pw_info.get_login().to_string())
         };
         self.vault
-            .write_password(new_name, self.pw_info.get_pw().clone(), login, true)?;
+            .write_password(new_name, self.pw_info.get_pw().clone(), login, !is_new_pw)?;
 
         if orig_name != new_name {
             self.pw_list.update_entry(&id.clone(), new_name.to_string());
