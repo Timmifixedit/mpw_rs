@@ -58,6 +58,12 @@ impl From<VaultErrorStack> for MessageDialog {
     }
 }
 
+impl From<VaultError> for MessageDialog {
+    fn from(value: VaultError) -> Self {
+        MessageDialog::from(VaultErrorStack::from(value))
+    }
+}
+
 impl From<PathManagerError> for MessageDialog {
     fn from(value: PathManagerError) -> Self {
         MessageDialog::new(value.to_string(), MessageType::Error)
