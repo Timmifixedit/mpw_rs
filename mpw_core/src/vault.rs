@@ -33,7 +33,7 @@ pub enum EncryptionNoOp {
 pub enum PasswordError {
     #[error("Password '{0}' not found")]
     PasswordNotFound(String),
-    #[error("Password name '{0}' contains invalid characters")]
+    #[error("Password name '{0}' empty or contains invalid characters")]
     InvalidPwName(String),
     #[error("Password '{0}' already exists")]
     AlreadyExists(String),
@@ -588,6 +588,7 @@ impl Vault {
     }
 
     pub fn rename_fs_entry(&mut self, old_name: &str, new_name: String) -> Result<(), VaultError> {
+        assert_valid_name(&new_name)?;
         let entry = self
             .file_list
             .get(old_name)
@@ -602,6 +603,7 @@ impl Vault {
     }
 
     pub fn rename_password(&mut self, old_name: &str, new_name: &str) -> Result<(), VaultError> {
+        assert_valid_name(new_name)?;
         let (pw_path, login_path) = self.get_pw_by_name(old_name)?;
         if self.get_pw_by_name(new_name).is_ok() {
             return Err(PasswordError::AlreadyExists(new_name.to_string()).into());
