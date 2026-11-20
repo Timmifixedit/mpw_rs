@@ -1,3 +1,4 @@
+use crate::dialogs::base::Dialog;
 use crate::dialogs::login;
 use crate::dialogs::login::DialogResult;
 use crate::dialogs::message::{MessageDialog, MessageType};
@@ -161,14 +162,14 @@ impl LoginPage {
                                 return no_op!();
                             }
 
+                            let (page, err) = Passwords::new(
+                                self.vault
+                                    .take()
+                                    .expect("Invalid state, a vault should be present"),
+                            );
                             return Ok((
-                                Page::Vault(Passwords::new(
-                                    self.vault
-                                        .take()
-                                        .expect("Invalid state, a vault should be present"),
-                                ))
-                                .into(),
-                                None,
+                                Page::Vault(page).into(),
+                                err.map(Dialog::Message),
                                 Task::none(),
                             ));
                         }

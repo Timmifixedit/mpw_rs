@@ -1,52 +1,168 @@
-use crate::pages::login::LoginPage;
-use crate::pages::page::{Page, PageMessage};
-use iced::widget::{button, container, text};
-use iced::{Alignment, Element, Length, Task, alignment};
+use crate::controls::list_box::ListBox;
+use crate::controls::pw_details::PasswordDetails;
+use crate::controls::{list_box, pw_details};
+use crate::dialogs::confirmation::{ConfirmationDialog, DialogResult};
+use crate::dialogs::message::{MessageDialog, MessageType};
+use crate::no_op;
+use crate::pages::page::PageMessage;
+use iced::widget::{button, container, row, space, text_input};
+use iced::{Alignment, Element, Length, Task};
+use mpw_core::path_manager::Search;
 use mpw_core::vault::Vault;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum Message {
-    Quit,
+    AddPressed,
+    RemovePressed,
+    SearchChanged(String),
+    ListBox(list_box::Message),
+    PwInfo(pw_details::Message),
+}
+
+#[derive(Debug, Clone)]
+enum ConfirmedAction {
+    Update,
+    Remove,
+    None,
 }
 
 pub struct Passwords {
     vault: Vault,
+    pw_list: ListBox<String>,
+    pw_info: PasswordDetails,
+    search_string: String,
+    confirmation_action: ConfirmedAction,
 }
 
 impl Passwords {
-    pub fn new(vault: Vault) -> Self {
-        Passwords { vault }
+    pub fn new(vault: Vault) -> (Self, Option<MessageDialog>) {
+        let (pw_list, message) = match vault.list_passwords(Search::None) {
+            Ok(pws) => (pws, None),
+            Err(err) => (
+                vec![],
+                Some(MessageDialog::new(err.to_string(), MessageType::Error)),
+            ),
+        };
+        (
+            Passwords {
+                vault,
+                pw_list: ListBox::new(pw_list),
+                search_string: String::new(),
+                pw_info: PasswordDetails::new(),
+                confirmation_action: ConfirmedAction::None,
+            },
+            message,
+        )
     }
 
     pub fn view(&self) -> Element<'_, Message> {
-        let content = iced::widget::column![
-            text("Vault Unlocked").size(32),
-            text("Your passwords are accessible here."), //.padding(10),
-            button("Back to Login").on_press(Message::Quit),
-        ]
-        .spacing(20)
-        .align_x(Alignment::Center);
-
-        container(content)
+        let list_column = container(
+            iced::widget::column![
+                container(
+                    row![
+                        text_input("Search", &self.search_string)
+                            .width(Length::Fixed(300.0))
+                            .on_input(Message::SearchChanged),
+                        button("Add").on_press(Message::AddPressed),
+                        button("Remove").on_press(Message::RemovePressed)
+                    ]
+                    .spacing(10)
+                )
+                .align_x(Alignment::Start),
+                row![
+                    container(
+                        self.pw_list
+                            .view(Some(|name: &String| name
+                                .to_lowercase()
+                                .contains(&self.search_string.to_lowercase())))
+                            .map(Message::ListBox)
+                    )
+                    .width(Length::FillPortion(2)),
+                    if self.pw_list.selected_item().is_some() {
+                        self.pw_info.view().map(Message::PwInfo)
+                    } else {
+                        container(space()).width(Length::FillPortion(1)).into()
+                    }
+                ]
+                .spacing(20)
+                .align_y(Alignment::Start)
+            ]
+            .spacing(10),
+        )
+        .padding(10);
+        container(list_column)
             .width(Length::Fill)
             .height(Length::Fill)
-            .align_x(alignment::Horizontal::Center)
-            .align_y(alignment::Vertical::Center)
             .into()
     }
 
     pub fn update(&mut self, message: Message) -> PageMessage<Message> {
         match message {
-            Message::Quit => {
-                let err = self
-                    .vault
-                    .lock()
-                    .map_or_else(|err| Some(err.into()), |_| None);
-                let (page, _) = LoginPage::new(); //TODO enable passing multiple messages?
-                Ok((Some(Page::Login(page)), err, Task::none()))
+            Message::SearchChanged(search) => {
+                self.search_string = search;
+            }
+            Message::ListBox(msg) => {
+                self.pw_list.update(msg);
+                if let Some((_, name)) = self.pw_list.selected_item() {
+                    let (pw, login) = self.vault.retrieve_password(name)?;
+                    self.pw_info
+                        .update_info(name.clone(), pw, login.unwrap_or_default());
+                }
+            }
+            Message::PwInfo(msg) => {
+                if self.pw_info.update(msg) {
+                    self.confirmation_action = ConfirmedAction::Update;
+                    return ConfirmationDialog::new_request(
+                        "Please confirm that you want to update the password.".into(),
+                        false,
+                    );
+                }
+            }
+            Message::AddPressed => {
+                self.pw_list.add_item("".into());
+            }
+            Message::RemovePressed => {
+                todo!()
             }
         }
+        no_op!()
+    }
+
+    fn update_pw(&mut self) -> Result<(), MessageDialog> {
+        let (id, orig_name) = self.pw_list.selected_item().expect("No selected item");
+        let new_name = self.pw_info.get_name();
+        if orig_name != new_name {
+            self.vault.rename_password(orig_name, new_name)?;
+        }
+
+        let login = if self.pw_info.get_login() == "" {
+            None
+        } else {
+            Some(self.pw_info.get_login().to_string())
+        };
+        self.vault
+            .write_password(new_name, self.pw_info.get_pw().clone(), login, true)?;
+
+        if orig_name != new_name {
+            self.pw_list.update_entry(&id.clone(), new_name.to_string());
+        }
+
+        Ok(())
     }
 
     pub fn handle_escape(&mut self) {}
+
+    pub fn react_to_dialog(&mut self, res: DialogResult) -> Result<(), MessageDialog> {
+        let action = self.confirmation_action.clone();
+        self.confirmation_action = ConfirmedAction::None;
+        if matches!(res, DialogResult::Yes) {
+            match action {
+                ConfirmedAction::Update => return self.update_pw(),
+                ConfirmedAction::Remove => {}
+                ConfirmedAction::None => {}
+            }
+        }
+
+        Ok(())
+    }
 }

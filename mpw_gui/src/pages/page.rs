@@ -77,6 +77,9 @@ impl Page {
             Page::Settings(page) => page
                 .react_to_dialog(res)
                 .map(|_| (None, None, Task::none())),
+            Page::Vault(page) => page
+                .react_to_dialog(res)
+                .map(|_| (None, None, Task::none())),
             _ => no_op!(),
         }
     }

@@ -1,4 +1,4 @@
-use iced::Alignment;
+use iced::{Alignment, Element};
 use iced::widget::{Container, Id, button, container, text_input};
 use secure_string::SecureString;
 use std::mem;
@@ -27,7 +27,7 @@ impl PwInput {
         }
     }
 
-    pub fn view(&self) -> Container<'_, Message> {
+    pub fn view(&self) -> Element<'_, Message> {
         let content = iced::widget::row![
             text_input("Enter your password", self.password.unsecure())
                 .size(16)
@@ -39,7 +39,7 @@ impl PwInput {
         ]
         .spacing(10)
         .align_y(Alignment::Center);
-        container(content)
+        container(content).into()
     }
 
     pub fn update(&mut self, message: Message) -> bool {
@@ -74,5 +74,9 @@ impl PwInput {
 
     pub fn focus(&mut self) -> iced::Task<Message>{
         iced::widget::operation::focus(self.text_field_id.clone())
+    }
+
+    pub fn set_password(&mut self, password: SecureString) {
+        self.password = password;
     }
 }
