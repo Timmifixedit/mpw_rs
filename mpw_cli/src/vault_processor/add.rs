@@ -79,7 +79,7 @@ impl Handler for Add {
 
             if let Some(r_len) = self.rand_len {
                 let pw = vault::random_password(r_len, self.invalid_chars.as_deref())?;
-                vault.write_password(&self.name, pw, self.login.as_deref(), self.overwrite)?;
+                vault.write_password(&self.name, pw, self.login, self.overwrite)?;
                 println!("{}", success_msg);
                 return Ok((VaultState::Unlocked, Followup::None));
             }
@@ -91,7 +91,7 @@ impl Handler for Add {
                     vlt.write_password(
                         self.name.as_str(),
                         pw,
-                        self.login.as_deref(),
+                        self.login,
                         self.overwrite,
                     )
                     .map_or_else(|e| e.to_string(), |_| success_msg)

@@ -308,7 +308,7 @@ impl Vault {
         &self,
         pw_name: &str,
         pw: SecureString,
-        login: Option<&str>,
+        login: Option<String>,
         overwrite: bool,
     ) -> Result<(), VaultError> {
         if self.is_locked() {
