@@ -115,7 +115,9 @@ impl Passwords {
             }
             Message::PwInfo(msg) => {
                 if self.pw_info.update(msg) {
-                    if let Some((_, name)) = self.pw_list.selected_item() && name == "" {
+                    if let Some((_, name)) = self.pw_list.selected_item()
+                        && name == ""
+                    {
                         self.update_pw()?;
                     } else {
                         self.confirmation_action = ConfirmedAction::Update;
@@ -130,7 +132,17 @@ impl Passwords {
                 self.pw_list.add_item("".into());
             }
             Message::RemovePressed => {
-                todo!()
+                if let Some((id, name)) = self.pw_list.selected_item() {
+                    if name == "" {
+                        self.pw_list.remove_entry(&id);
+                    } else {
+                        self.confirmation_action = ConfirmedAction::Remove;
+                        return ConfirmationDialog::new_request(
+                            format!("Do you really want to delete the password '{name}'?"),
+                            false,
+                        );
+                    }
+                }
             }
         }
         no_op!()
@@ -159,6 +171,13 @@ impl Passwords {
         Ok(())
     }
 
+    fn remove_pw(&mut self) -> Result<(), MessageDialog> {
+        let (id, name) = self.pw_list.selected_item().expect("No selected item");
+        self.vault.delete_password(name)?;
+        self.pw_list.remove_entry(&id);
+        Ok(())
+    }
+
     pub fn handle_escape(&mut self) {}
 
     pub fn react_to_dialog(&mut self, res: DialogResult) -> Result<(), MessageDialog> {
@@ -167,7 +186,7 @@ impl Passwords {
         if matches!(res, DialogResult::Yes) {
             match action {
                 ConfirmedAction::Update => return self.update_pw(),
-                ConfirmedAction::Remove => {}
+                ConfirmedAction::Remove => return self.remove_pw(),
                 ConfirmedAction::None => {}
             }
         }
