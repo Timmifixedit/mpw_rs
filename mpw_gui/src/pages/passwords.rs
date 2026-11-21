@@ -130,6 +130,7 @@ impl Passwords {
             }
             Message::AddPressed => {
                 self.pw_list.add_item("".into());
+                self.search_string = "".into();
             }
             Message::RemovePressed => {
                 if let Some((id, name)) = self.pw_list.selected_item() {
