@@ -61,7 +61,7 @@ impl AppSettingsPage {
                 row![
                     container(
                         self.list_view
-                            .view(Some(|name: &String| name
+                            .view(Some(|name: &str| name
                                 .to_lowercase()
                                 .contains(&self.search_string.to_lowercase())))
                             .map(Message::ListBox)
@@ -138,12 +138,14 @@ impl AppSettingsPage {
                         )?;
                         self.vault_entries.remove(orig_name);
                         self.list_view
-                            .update_entry(&id, self.vault_item_detail.get_name().to_string());
+                            .update_entry(id, self.vault_item_detail.get_name().to_string());
                     }
                     self.save_entries()?;
                 }
             }
-            Message::AddPressed => self.list_view.add_item("".into()),
+            Message::AddPressed => {
+                self.list_view.add_item("".into());
+            }
             Message::RemovePressed => {
                 if let Some((_, name)) = self.list_view.selected_item() {
                     return ConfirmationDialog::new_request(
@@ -168,7 +170,7 @@ impl AppSettingsPage {
             && let Some((id, name)) = self.list_view.selected_item()
         {
             self.vault_entries.remove(name);
-            self.list_view.remove_entry(&id);
+            self.list_view.remove_entry(id);
             self.save_entries()
         } else {
             Ok(())

@@ -72,7 +72,7 @@ impl Passwords {
                 row![
                     container(
                         self.pw_list
-                            .view(Some(|name: &String| name
+                            .view(Some(|name: &str| name
                                 .to_lowercase()
                                 .contains(&self.search_string.to_lowercase())))
                             .map(Message::ListBox)
@@ -135,7 +135,7 @@ impl Passwords {
             Message::RemovePressed => {
                 if let Some((id, name)) = self.pw_list.selected_item() {
                     if name == "" {
-                        self.pw_list.remove_entry(&id);
+                        self.pw_list.remove_entry(id);
                     } else {
                         self.confirmation_action = ConfirmedAction::Remove;
                         return ConfirmationDialog::new_request(
@@ -166,7 +166,7 @@ impl Passwords {
             .write_password(new_name, self.pw_info.get_pw().clone(), login, !is_new_pw)?;
 
         if orig_name != new_name {
-            self.pw_list.update_entry(&id.clone(), new_name.to_string());
+            self.pw_list.update_entry(id, new_name.to_string());
         }
 
         Ok(())
@@ -175,7 +175,7 @@ impl Passwords {
     fn remove_pw(&mut self) -> Result<(), MessageDialog> {
         let (id, name) = self.pw_list.selected_item().expect("No selected item");
         self.vault.delete_password(name)?;
-        self.pw_list.remove_entry(&id);
+        self.pw_list.remove_entry(id);
         Ok(())
     }
 

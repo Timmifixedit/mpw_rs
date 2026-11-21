@@ -1,36 +1,51 @@
 use iced::widget::{button, column, container, scrollable};
 use iced::{Element, Length, Theme};
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
+use std::sync::atomic::AtomicUsize;
+
+static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
+
+#[derive(Debug, Hash, Eq, PartialEq, Clone, Copy, PartialOrd, Ord)]
+pub struct ItemId(usize);
+
+impl ItemId {
+    pub fn unique() -> ItemId {
+        ItemId(NEXT_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    ItemSelected(iced::widget::Id),
+    ItemSelected(ItemId),
 }
 
 pub struct ListBox<T: AsRef<str>> {
-    items: HashMap<iced::widget::Id, T>,
-    selected: Option<iced::widget::Id>,
+    items: HashMap<ItemId, T>,
+    display_items: BTreeSet<(String, ItemId)>,
+    selected: Option<ItemId>,
 }
 
 impl<T: AsRef<str>> ListBox<T> {
     pub fn new(data_source: impl IntoIterator<Item = T>) -> Self {
-        let items = HashMap::from_iter(
-            data_source
-                .into_iter()
-                .map(|item| (iced::widget::Id::unique(), item)),
-        );
+        let items =
+            HashMap::from_iter(data_source.into_iter().map(|item| (ItemId::unique(), item)));
+        let display_items = items
+            .iter()
+            .map(|(&id, item)| (item.as_ref().to_string(), id))
+            .collect::<BTreeSet<_>>();
         Self {
             items,
+            display_items,
             selected: None,
         }
     }
 
-    pub fn view<F: Fn(&T) -> bool>(&self, filter: Option<F>) -> Element<'_, Message> {
+    pub fn view<F: Fn(&str) -> bool>(&self, filter: Option<F>) -> Element<'_, Message> {
         let items = column(
-            self.items
+            self.display_items
                 .iter()
-                .filter(|(_, item)| filter.as_ref().map_or(true, |f| f(item)))
-                .map(|(id, item)| {
+                .filter(|(item, _)| filter.as_ref().map_or(true, |f| f(item)))
+                .map(|(item, id)| {
                     let selected = self.selected.as_ref() == Some(id);
                     iced::widget::button(item.as_ref())
                         .padding(10)
@@ -61,26 +76,31 @@ impl<T: AsRef<str>> ListBox<T> {
         }
     }
 
-    pub fn update_entry(&mut self, id: &iced::widget::Id, item: T) {
-        self.items.insert(id.clone(), item);
+    pub fn update_entry(&mut self, id: ItemId, item: T) {
+        let name = item.as_ref().to_string();
+        if let Some(old) = self.items.insert(id, item) {
+            self.display_items.remove(&(old.as_ref().to_string(), id));
+        }
+
+        self.display_items.insert((name, id));
     }
 
-    pub fn add_item(&mut self, item: T) {
-        self.items.insert(iced::widget::Id::unique(), item);
+    pub fn add_item(&mut self, item: T) -> ItemId {
+        let new_id = ItemId::unique();
+        self.update_entry(new_id, item);
+        new_id
     }
 
-    pub fn remove_entry(&mut self, id: &iced::widget::Id) {
+    pub fn remove_entry(&mut self, id: ItemId) {
         self.unselect();
-        self.items.remove(id);
+        if let Some(old) = self.items.remove(&id) {
+            self.display_items.remove(&(old.as_ref().to_string(), id));
+        }
     }
 
-    pub fn selected_item(&self) -> Option<(iced::widget::Id, &T)> {
-        self.selected.as_ref().map(|id| {
-            (
-                id.clone(),
-                self.items.get(&id).expect("selected item should exist"),
-            )
-        })
+    pub fn selected_item(&self) -> Option<(ItemId, &T)> {
+        self.selected
+            .map(|id| (id, self.items.get(&id).expect("selected item should exist")))
     }
 
     pub fn unselect(&mut self) {
