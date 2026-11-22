@@ -12,6 +12,7 @@ use std::io::SeekFrom::{Current, Start};
 use std::io::{BufWriter, Cursor, Read, Seek, Write};
 use std::num::NonZeroU32;
 use std::path::Path;
+use libc::c_ulong;
 
 // Constants and aliases
 
@@ -21,7 +22,7 @@ define!(PBKDF2_ITERATIONS: NonZeroU32 = NonZeroU32::new(1000).unwrap());
 define!(AES_IV_LEN: usize = 16);
 define!(AES_KEY_LEN: usize = 32);
 define!(HMAC_SALT_LEN: usize = 8);
-const OPEN_SSL_BAD_DECRYPT: u64 = 0x1C800064;
+const OPEN_SSL_BAD_DECRYPT: c_ulong = 0x1C800064;
 pub type AesIV = [u8; AES_IV_LEN.value];
 pub type Salt = [u8; HMAC_SALT_LEN.value];
 pub type AesKey = SecureArray<u8, { AES_KEY_LEN.value }>;
