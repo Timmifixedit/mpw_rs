@@ -114,19 +114,26 @@ impl Passwords {
                 }
             }
             Message::PwInfo(msg) => {
-                if self.pw_info.update(msg) {
+                let (pw_updated, task) = self.pw_info.update(msg);
+                let mut dialog = None;
+                if pw_updated {
                     if let Some((_, name)) = self.pw_list.selected_item()
                         && name == ""
                     {
                         self.update_pw()?;
                     } else {
                         self.confirmation_action = ConfirmedAction::Update;
-                        return ConfirmationDialog::new_request(
-                            "Please confirm that you want to update the password.".into(),
-                            false,
+                        dialog = Some(
+                            ConfirmationDialog::new(
+                                "Please confirm that you want to update the password.".into(),
+                                false,
+                            )
+                            .into(),
                         );
                     }
                 }
+
+                return Ok((None, dialog, task.map(Message::PwInfo)));
             }
             Message::AddPressed => {
                 let added = self.pw_list.add_item("".into());

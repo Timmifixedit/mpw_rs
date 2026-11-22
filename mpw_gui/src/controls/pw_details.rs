@@ -1,7 +1,7 @@
 use crate::controls::pw_input;
 use crate::controls::pw_input::PwInput;
-use iced::widget::{button, column, container, space, text, text_input};
-use iced::{Alignment, Element};
+use iced::widget::{button, column, container, row, space, text, text_input};
+use iced::{Alignment, Element, Task};
 use secure_string::SecureString;
 
 #[derive(Clone)]
@@ -9,6 +9,8 @@ pub enum Message {
     NameChanged(String),
     LoginChanged(String),
     PwInput(pw_input::Message),
+    CopyLogin,
+    CopyPassword,
     SavePressed,
 }
 
@@ -37,11 +39,21 @@ impl PasswordDetails {
                     .on_input(Message::NameChanged)
                     .size(16),
                 text("Login info").align_x(Alignment::Start),
-                text_input("Enter login info", &self.login)
-                    .on_input(Message::LoginChanged)
-                    .size(16),
+                row![
+                    text_input("Enter login info", &self.login)
+                        .on_input(Message::LoginChanged)
+                        .size(16),
+                    button("Copy").on_press(Message::CopyLogin)
+                ]
+                .align_y(Alignment::Center)
+                .spacing(10),
                 text("Password").align_x(Alignment::Start),
-                self.pw_input.view().map(Message::PwInput),
+                row![
+                    self.pw_input.view().map(Message::PwInput),
+                    button("Copy").on_press(Message::CopyPassword)
+                ]
+                .align_y(Alignment::Start)
+                .spacing(10),
                 if self.modified {
                     container(button("Save").on_press(Message::SavePressed))
                 } else {
@@ -55,7 +67,7 @@ impl PasswordDetails {
         .into()
     }
 
-    pub fn update(&mut self, msg: Message) -> bool {
+    pub fn update(&mut self, msg: Message) -> (bool, Task<Message>) {
         match msg {
             Message::NameChanged(name) => {
                 self.name = name;
@@ -74,11 +86,20 @@ impl PasswordDetails {
             }
             Message::SavePressed => {
                 self.modified = false;
-                return true;
+                return (true, Task::none());
+            }
+            Message::CopyLogin => {
+                return (false, iced::clipboard::write(self.login.clone()));
+            }
+            Message::CopyPassword => {
+                return (
+                    false,
+                    iced::clipboard::write(self.pw_input.password().unsecure().to_string()),
+                );
             }
         }
 
-        false
+        (false, Task::none())
     }
 
     pub fn get_name(&self) -> &str {
@@ -88,7 +109,7 @@ impl PasswordDetails {
     pub fn get_pw(&self) -> &SecureString {
         self.pw_input.password()
     }
-    
+
     pub fn get_login(&self) -> &str {
         &self.login
     }
