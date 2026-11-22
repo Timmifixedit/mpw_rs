@@ -129,8 +129,10 @@ impl Passwords {
                 }
             }
             Message::AddPressed => {
-                self.pw_list.add_item("".into());
+                let added = self.pw_list.add_item("".into());
                 self.search_string = "".into();
+                self.pw_list.select(added);
+                self.pw_info.update_info("".into(), "".into(), "".into());
             }
             Message::RemovePressed => {
                 if let Some((id, name)) = self.pw_list.selected_item() {

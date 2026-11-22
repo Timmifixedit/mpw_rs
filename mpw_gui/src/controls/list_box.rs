@@ -97,10 +97,18 @@ impl<T: AsRef<str>> ListBox<T> {
             self.display_items.remove(&(old.as_ref().to_string(), id));
         }
     }
+    
+    pub fn get_item(&self, id: ItemId) -> Option<&T> {
+        self.items.get(&id)
+    }
 
     pub fn selected_item(&self) -> Option<(ItemId, &T)> {
         self.selected
             .map(|id| (id, self.items.get(&id).expect("selected item should exist")))
+    }
+
+    pub fn select(&mut self, id: ItemId) {
+        self.selected = Some(id);
     }
 
     pub fn unselect(&mut self) {

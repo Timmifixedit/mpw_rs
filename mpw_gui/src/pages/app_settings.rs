@@ -1,5 +1,5 @@
 use crate::controls::list_box;
-use crate::controls::list_box::ListBox;
+use crate::controls::list_box::{ItemId, ListBox};
 use crate::controls::vault_details;
 use crate::controls::vault_details::VaultDetailsView;
 use crate::dialogs::base::Dialog;
@@ -144,14 +144,21 @@ impl AppSettingsPage {
                 }
             }
             Message::AddPressed => {
-                self.list_view.add_item("".into());
+                let added = self.list_view.add_item("".into());
+                self.search_string = "".into();
+                self.list_view.select(added);
+                self.vault_item_detail.update_info("".into(), "".into(), false);
             }
             Message::RemovePressed => {
-                if let Some((_, name)) = self.list_view.selected_item() {
-                    return ConfirmationDialog::new_request(
-                        format!("Remove vault entry '{name}'?").into(),
-                        false,
-                    );
+                if let Some((id, name)) = self.list_view.selected_item() {
+                    if name == "" {
+                        self.remove_entry(id)?;
+                    } else {
+                        return ConfirmationDialog::new_request(
+                            format!("Remove vault entry '{name}'?").into(),
+                            false,
+                        );
+                    }
                 }
             }
             Message::SearchChanged(search_string) => {
@@ -165,13 +172,20 @@ impl AppSettingsPage {
         self.list_view.unselect();
     }
 
+    fn remove_entry(&mut self, id: ItemId) -> Result<(), MessageDialog> {
+        if let Some(name) = self.list_view.get_item(id) {
+            self.vault_entries.remove(name);
+        }
+
+        self.list_view.remove_entry(id);
+        self.save_entries()
+    }
+
     pub fn react_to_dialog(&mut self, res: DialogResult) -> Result<(), MessageDialog> {
         if matches!(res, DialogResult::Yes)
-            && let Some((id, name)) = self.list_view.selected_item()
+            && let Some((id, _)) = self.list_view.selected_item()
         {
-            self.vault_entries.remove(name);
-            self.list_view.remove_entry(id);
-            self.save_entries()
+            self.remove_entry(id)
         } else {
             Ok(())
         }
