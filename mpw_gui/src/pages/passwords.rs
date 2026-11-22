@@ -6,7 +6,7 @@ use crate::dialogs::message::{MessageDialog, MessageType};
 use crate::no_op;
 use crate::pages::page::PageMessage;
 use iced::widget::{button, container, row, space, text_input};
-use iced::{Alignment, Element, Length, Task};
+use iced::{Alignment, Element, Length, Task, clipboard};
 use mpw_core::path_manager::Search;
 use mpw_core::vault::Vault;
 
@@ -189,6 +189,21 @@ impl Passwords {
     }
 
     pub fn handle_escape(&mut self) {}
+
+    pub fn handle_ctrl_c(&mut self) -> PageMessage<Message> {
+        use iced::clipboard;
+        if self.pw_list.selected_item().is_none() {
+            return no_op!();
+        }
+
+        Ok((
+            None,
+            None,
+            clipboard::write(self.pw_info.get_pw().unsecure().to_string()).chain(
+                clipboard::write_primary(self.pw_info.get_login().to_string()), // TODO Windows??
+            ),
+        ))
+    }
 
     pub fn react_to_dialog(&mut self, res: DialogResult) -> Result<(), MessageDialog> {
         let action = self.confirmation_action.clone();

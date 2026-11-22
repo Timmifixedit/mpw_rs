@@ -15,6 +15,7 @@ enum Message {
     Page(pages::page::PageEvent),
     Dialog(dialogs::base::Message),
     EscapePressed,
+    CtrlCPressed,
     NoOp,
 }
 
@@ -44,13 +45,17 @@ fn view(state: &State) -> Element<'_, Message> {
 
 fn events(_: &State) -> Subscription<Message> {
     use iced::keyboard::Event as Kevt;
-    use iced::keyboard::key::Key;
-    use iced::keyboard::key::Named;
+    use iced::keyboard::key::{Code, Key, Named, Physical};
     iced::keyboard::listen().map(|evt| match evt {
         Kevt::KeyPressed {
             key: Key::Named(Named::Escape),
             ..
         } => Message::EscapePressed,
+        Kevt::KeyPressed {
+            physical_key: Physical::Code(Code::KeyC),
+            modifiers,
+            ..
+        } if modifiers.control() => Message::CtrlCPressed,
         _ => Message::NoOp,
     })
 }
@@ -102,6 +107,7 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
             state.current_page.handle_escape();
             Task::none()
         }
+        Message::CtrlCPressed => handle_page_result(state.current_page.handle_ctrl_c(), state),
         Message::NoOp => Task::none(),
     }
 }

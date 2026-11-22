@@ -72,6 +72,16 @@ impl Page {
         }
     }
 
+    pub fn handle_ctrl_c(&mut self) -> PageResult {
+        match self {
+            Page::Vault(page) => {
+                let (next_page, message, task) = page.handle_ctrl_c()?;
+                Ok((next_page, message, task.map(PageEvent::Passwords)))
+            }
+            _ => no_op!(),
+        }
+    }
+
     pub fn react_to_dialog(&mut self, res: dialogs::confirmation::DialogResult) -> PageResult {
         match self {
             Page::Settings(page) => page
