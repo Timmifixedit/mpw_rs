@@ -1,19 +1,18 @@
+use iced::widget::{Id, checkbox, container, text, text_input};
 use iced::{Alignment, Element};
-use iced::widget::{Container, Id, button, container, text_input};
 use secure_string::SecureString;
 use std::mem;
 
 #[derive(Clone)]
 pub enum Message {
     PwUpdated(SecureString),
-    Toggle,
+    Toggle(bool),
     EnterPressed,
 }
 
 pub struct PwInput {
     password: SecureString,
-    show_hide: String,
-    hide: bool,
+    show: bool,
     text_field_id: Id,
 }
 
@@ -21,37 +20,35 @@ impl PwInput {
     pub fn new() -> Self {
         Self {
             password: "".into(),
-            show_hide: String::from("Show"),
-            hide: true,
+            show: false,
             text_field_id: Id::unique(),
         }
     }
 
     pub fn view(&self) -> Element<'_, Message> {
-        let content = iced::widget::row![
+        let content = iced::widget::column![
             text_input("Enter your password", self.password.unsecure())
                 .size(16)
                 .id(self.text_field_id.clone())
-                .secure(self.hide)
+                .secure(!self.show)
                 .on_input(|s| Message::PwUpdated(s.into()))
                 .on_submit(Message::EnterPressed),
-            button(self.show_hide.as_ref()).on_press(Message::Toggle)
+            iced::widget::row![
+                checkbox(self.show).on_toggle(Message::Toggle),
+                text("Show password")
+            ]
+            .align_y(Alignment::Center)
+            .spacing(10)
         ]
-        .spacing(10)
-        .align_y(Alignment::Center);
+        .spacing(10);
         container(content).into()
     }
 
     pub fn update(&mut self, message: Message) -> bool {
         match message {
             Message::PwUpdated(s) => self.password = s,
-            Message::Toggle => {
-                self.hide = !self.hide;
-                self.show_hide = if self.hide {
-                    String::from("Show")
-                } else {
-                    String::from("Hide")
-                };
+            Message::Toggle(visible) => {
+                self.show = visible;
             }
             Message::EnterPressed => {
                 return true;
@@ -72,7 +69,7 @@ impl PwInput {
         self.password = "".into();
     }
 
-    pub fn focus(&mut self) -> iced::Task<Message>{
+    pub fn focus(&mut self) -> iced::Task<Message> {
         iced::widget::operation::focus(self.text_field_id.clone())
     }
 
