@@ -15,6 +15,7 @@ enum Message {
     Page(pages::page::PageEvent),
     Dialog(dialogs::base::Message),
     EscapePressed,
+    EnterPressed,
     CtrlCPressed,
     NoOp,
 }
@@ -56,6 +57,10 @@ fn events(_: &State) -> Subscription<Message> {
             modifiers,
             ..
         } if modifiers.control() => Message::CtrlCPressed,
+        Kevt::KeyPressed {
+            key: Key::Named(Named::Enter),
+            ..
+        } => Message::EnterPressed,
         _ => Message::NoOp,
     })
 }
@@ -104,7 +109,19 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
             Task::none()
         }
         Message::EscapePressed => {
-            state.current_page.handle_escape();
+            if state.info_dialog.is_some() {
+                state.info_dialog = None;
+            } else {
+                state.current_page.handle_escape();
+            }
+            Task::none()
+        }
+        Message::EnterPressed => {
+            if let Some(dialog) = &state.info_dialog
+                && matches!(dialog, Dialog::Message(_))
+            {
+                state.info_dialog = None;
+            }
             Task::none()
         }
         Message::CtrlCPressed => handle_page_result(state.current_page.handle_ctrl_c(), state),
