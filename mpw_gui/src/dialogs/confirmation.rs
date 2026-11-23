@@ -1,5 +1,5 @@
 use crate::dialogs::base::{Dialog, make_dialog};
-use crate::pages::page::{PageMessage, PageResult};
+use crate::pages::page::PageMessage;
 use iced::widget::{button, column, container, row, space, text};
 use iced::{Alignment, Element, Task};
 

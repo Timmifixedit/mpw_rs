@@ -6,7 +6,7 @@ use crate::dialogs::message::{MessageDialog, MessageType};
 use crate::no_op;
 use crate::pages::page::PageMessage;
 use iced::widget::{button, container, row, space, text_input};
-use iced::{Alignment, Element, Length, Task, clipboard};
+use iced::{Alignment, Element, Length, Task};
 use mpw_core::path_manager::Search;
 use mpw_core::vault::Vault;
 

@@ -1,7 +1,7 @@
-use crate::dialogs::base::Dialog;
-use crate::dialogs::login;
+use crate::dialogs::base;
 use crate::dialogs::login::DialogResult;
 use crate::dialogs::message::{MessageDialog, MessageType};
+use crate::dialogs::{create_vault, login};
 use crate::no_op;
 use crate::pages::app_settings::AppSettingsPage;
 use crate::pages::page::{Page, PageMessage};
@@ -10,21 +10,33 @@ use iced::widget::{button, container, pick_list, stack, text};
 use iced::{Alignment, Element, Font, Length, Task};
 use mpw_core::config::get_config_path;
 use mpw_core::path_manager::PathManager;
+use mpw_core::vault::{FatalError, Vault, VaultError};
+use std::path::PathBuf;
+
+#[derive(Clone)]
+enum DialogMessage {
+    Login(login::Message),
+    Create(create_vault::Message),
+}
 
 #[derive(Clone)]
 pub enum Message {
     LoadPressed,
     SettingsPressed,
     VaultSelected(String),
-    PwDialogMessage(login::Message),
+    DialogMessage(DialogMessage),
+}
+
+enum Dialog {
+    Login((login::LoginDialog, Vault)),
+    Create((create_vault::CreateVaultDialog, PathBuf)),
+    None,
 }
 
 pub struct LoginPage {
     vault_entries: PathManager,
     selected_vault: Option<String>,
-    pw_dialog: login::LoginDialog,
-    show_pw_dialog: bool,
-    vault: Option<mpw_core::vault::Vault>,
+    dialog: Dialog,
 }
 
 impl LoginPage {
@@ -57,9 +69,7 @@ impl LoginPage {
             LoginPage {
                 selected_vault: vault_entries.get_default_name().map(|name| name.to_owned()),
                 vault_entries,
-                show_pw_dialog: false,
-                pw_dialog: login::LoginDialog::new(),
-                vault: None,
+                dialog: Dialog::None,
             },
             message,
         )
@@ -104,78 +114,128 @@ impl LoginPage {
         .height(Length::Fill)
         .padding(10)
         .align_x(Alignment::Center);
-        if self.show_pw_dialog {
-            stack![
-                main_page,
-                self.pw_dialog.view().map(Message::PwDialogMessage)
-            ]
-            .into()
-        } else {
-            main_page.into()
+        stack![
+            main_page,
+            match &self.dialog {
+                Dialog::Login((d, _)) => d
+                    .view()
+                    .map(|msg| Message::DialogMessage(DialogMessage::Login(msg))),
+                Dialog::Create((d, _)) => d
+                    .view()
+                    .map(|msg| Message::DialogMessage(DialogMessage::Create(msg))),
+                Dialog::None => container(space()).into(),
+            }
+        ]
+        .into()
+    }
+
+    fn handle_dialog_message(&mut self, msg: DialogMessage) -> PageMessage<Message> {
+        match (msg, &mut self.dialog) {
+            (DialogMessage::Login(msg), Dialog::Login((d, vault))) => {
+                use mpw_core::error::MpwError::WrongPassword;
+                use mpw_core::vault::VaultError::CoreError;
+                match d.update(msg) {
+                    DialogResult::Cancelled => {
+                        self.dialog = Dialog::None;
+                    }
+                    DialogResult::Confirmed => {
+                        let res = vault.unlock(d.take_password());
+                        if res.is_err_and(|err| matches!(err, CoreError(WrongPassword))) {
+                            d.set_error("Wrong password");
+                            return no_op!();
+                        }
+
+                        if let Dialog::Login((_, unlocked_vault)) =
+                            std::mem::replace(&mut self.dialog, Dialog::None)
+                        {
+                            let (page, err) = Passwords::new(unlocked_vault);
+                            return Ok((
+                                Page::Vault(page).into(),
+                                err.map(base::Dialog::Message),
+                                Task::none(),
+                            ));
+                        }
+                    }
+                    DialogResult::None => {}
+                }
+            }
+            (DialogMessage::Create(msg), Dialog::Create((d, _))) => {
+                let (res, task) = d.update(msg);
+                match res {
+                    DialogResult::Cancelled => {
+                        self.dialog = Dialog::None;
+                    }
+                    DialogResult::Confirmed => {
+                        if let Dialog::Create((d, vault_path)) =
+                            std::mem::replace(&mut self.dialog, Dialog::None)
+                        {
+                            let pw = d.take_password();
+                            let mut vault = Vault::new(vault_path, pw.clone())?;
+                            vault.unlock(pw)?;
+                            let (page, err) = Passwords::new(vault);
+                            return Ok((
+                                Page::Vault(page).into(),
+                                err.map(base::Dialog::Message),
+                                Task::none(),
+                            ));
+                        }
+                    }
+                    DialogResult::None => {}
+                }
+
+                return Ok((
+                    None,
+                    None,
+                    task.map(|msg| Message::DialogMessage(DialogMessage::Create(msg))),
+                ));
+            }
+            _ => {}
         }
-    }
-
-    fn try_unlock_vault(&mut self) -> Result<(), mpw_core::vault::VaultError> {
-        self.vault
-            .as_mut()
-            .expect("Invalid state. Vault should be loaded")
-            .unlock(self.pw_dialog.take_password())
-    }
-
-    fn close_pw_dialog(&mut self) {
-        self.pw_dialog.clear_password();
-        self.pw_dialog.clear_error();
-        self.show_pw_dialog = false;
-    }
-
-    fn open_pw_dialog(&mut self) -> Task<Message> {
-        self.show_pw_dialog = true;
-        self.pw_dialog.focus().map(Message::PwDialogMessage)
+        no_op!()
     }
 
     pub fn update(&mut self, message: Message) -> PageMessage<Message> {
         match message {
             Message::LoadPressed => {
                 if let Some(vault_name) = self.selected_vault.as_ref() {
-                    self.vault = Some(
-                        mpw_core::vault::Vault::load(
-                            self.vault_entries.get(vault_name).unwrap().to_owned(),
-                        )
-                        .map_err(|err| MessageDialog::new(err.to_string(), MessageType::Error))?,
-                    );
-                    return Ok((None, None, self.open_pw_dialog()));
+                    let vault_path = self.vault_entries.get(vault_name).unwrap().to_owned();
+                    let vault_res = Vault::load(vault_path.clone());
+                    return match vault_res {
+                        Ok(vault) => {
+                            let d = login::LoginDialog::new();
+                            let task = d.focus();
+                            self.dialog = Dialog::Login((d, vault));
+                            Ok((
+                                None,
+                                None,
+                                task.map(|msg| Message::DialogMessage(DialogMessage::Login(msg))),
+                            ))
+                        }
+                        Err(err) => match err {
+                            VaultError::Fatal(FatalError::VaultFileNotFound(_)) => {
+                                let d = create_vault::CreateVaultDialog::new();
+                                let task = d.focus();
+                                self.dialog = Dialog::Create((d, vault_path));
+                                Ok((
+                                    None,
+                                    None,
+                                    task.map(|msg| {
+                                        Message::DialogMessage(DialogMessage::Create(msg))
+                                    }),
+                                ))
+                            }
+                            _ => Err(err.into()),
+                        },
+                    };
                 }
             }
             Message::VaultSelected(v_name) => {
                 self.selected_vault = Some(v_name);
             }
-            Message::PwDialogMessage(msg) => {
-                use mpw_core::error::MpwError::WrongPassword;
-                use mpw_core::vault::VaultError::CoreError;
-                if let Some(res) = self.pw_dialog.update(msg) {
-                    match res {
-                        DialogResult::Cancelled => self.close_pw_dialog(),
-                        DialogResult::Confirmed => {
-                            let res = self.try_unlock_vault();
-                            if res.is_err_and(|err| matches!(err, CoreError(WrongPassword))) {
-                                self.pw_dialog.set_error("Wrong password");
-                                return no_op!();
-                            }
-
-                            let (page, err) = Passwords::new(
-                                self.vault
-                                    .take()
-                                    .expect("Invalid state, a vault should be present"),
-                            );
-                            return Ok((
-                                Page::Vault(page).into(),
-                                err.map(Dialog::Message),
-                                Task::none(),
-                            ));
-                        }
-                    }
-                }
+            Message::DialogMessage(msg) => {
+                return self.handle_dialog_message(msg);
             }
+
             Message::SettingsPressed => {
                 return Ok((
                     Page::Settings(AppSettingsPage::new(self.vault_entries.clone())).into(),
@@ -189,6 +249,6 @@ impl LoginPage {
     }
 
     pub fn handle_escape(&mut self) {
-        self.close_pw_dialog();
+        self.dialog = Dialog::None;
     }
 }

@@ -69,7 +69,7 @@ impl PwInput {
         self.password = "".into();
     }
 
-    pub fn focus(&mut self) -> iced::Task<Message> {
+    pub fn focus(&self) -> iced::Task<Message> {
         iced::widget::operation::focus(self.text_field_id.clone())
     }
 

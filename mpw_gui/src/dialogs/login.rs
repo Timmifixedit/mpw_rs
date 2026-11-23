@@ -15,6 +15,7 @@ pub enum Message {
 pub enum DialogResult {
     Cancelled,
     Confirmed,
+    None,
 }
 
 impl From<pw_input::Message> for Message {
@@ -64,16 +65,16 @@ impl LoginDialog {
         make_dialog(modal_box)
     }
 
-    pub fn update(&mut self, message: Message) -> Option<DialogResult> {
+    pub fn update(&mut self, message: Message) -> DialogResult {
         match message {
-            Message::Abort => Some(DialogResult::Cancelled),
-            Message::Confirm => Some(DialogResult::Confirmed),
+            Message::Abort => DialogResult::Cancelled,
+            Message::Confirm => DialogResult::Confirmed,
             Message::PwMessage(msg) => {
                 self.clear_error();
                 if self.pw_input.update(msg) {
-                    Some(DialogResult::Confirmed)
+                    DialogResult::Confirmed
                 } else {
-                    None
+                    DialogResult::None
                 }
             }
         }
@@ -99,7 +100,7 @@ impl LoginDialog {
         self.error = None;
     }
 
-    pub fn focus(&mut self) -> Task<Message> {
+    pub fn focus(&self) -> Task<Message> {
         self.pw_input.focus().map(Message::PwMessage)
     }
 }
