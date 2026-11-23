@@ -27,7 +27,6 @@ enum ConfirmedAction {
 }
 
 pub struct Passwords {
-    vault: Vault,
     pw_list: ListBox<String>,
     pw_info: PasswordDetails,
     search_string: String,
@@ -35,7 +34,7 @@ pub struct Passwords {
 }
 
 impl Passwords {
-    pub fn new(vault: Vault) -> (Self, Option<MessageDialog>) {
+    pub fn new(vault: &Vault) -> (Self, Option<MessageDialog>) {
         let (pw_list, message) = match vault.list_passwords(Search::None) {
             Ok(pws) => (pws, None),
             Err(err) => (
@@ -45,7 +44,6 @@ impl Passwords {
         };
         (
             Passwords {
-                vault,
                 pw_list: ListBox::new(pw_list),
                 search_string: String::new(),
                 pw_info: PasswordDetails::new(),
@@ -96,7 +94,7 @@ impl Passwords {
             .into()
     }
 
-    pub fn update(&mut self, message: Message) -> PageMessage<Message> {
+    pub fn update(&mut self, message: Message, vault: &mut Vault) -> PageMessage<Message> {
         match message {
             Message::SearchChanged(search) => {
                 self.search_string = search;
@@ -107,7 +105,7 @@ impl Passwords {
                     if name == "" {
                         self.pw_info.update_info("".into(), "".into(), "".into());
                     } else {
-                        let (pw, login) = self.vault.retrieve_password(name)?;
+                        let (pw, login) = vault.retrieve_password(name)?;
                         self.pw_info
                             .update_info(name.clone(), pw, login.unwrap_or_default());
                     }
@@ -120,7 +118,7 @@ impl Passwords {
                     if let Some((_, name)) = self.pw_list.selected_item()
                         && name == ""
                     {
-                        self.update_pw()?;
+                        self.update_pw(vault)?;
                     } else {
                         self.confirmation_action = ConfirmedAction::Update;
                         dialog = Some(
@@ -158,12 +156,12 @@ impl Passwords {
         no_op!()
     }
 
-    fn update_pw(&mut self) -> Result<(), MessageDialog> {
+    fn update_pw(&mut self, vault: &mut Vault) -> Result<(), MessageDialog> {
         let (id, orig_name) = self.pw_list.selected_item().expect("No selected item");
         let is_new_pw = orig_name == "";
         let new_name = self.pw_info.get_name();
         if orig_name != new_name && !is_new_pw {
-            self.vault.rename_password(orig_name, new_name)?;
+            vault.rename_password(orig_name, new_name)?;
         }
 
         let login = if self.pw_info.get_login() == "" {
@@ -171,8 +169,7 @@ impl Passwords {
         } else {
             Some(self.pw_info.get_login().to_string())
         };
-        self.vault
-            .write_password(new_name, self.pw_info.get_pw().clone(), login, !is_new_pw)?;
+        vault.write_password(new_name, self.pw_info.get_pw().clone(), login, !is_new_pw)?;
 
         if orig_name != new_name {
             self.pw_list.update_entry(id, new_name.to_string());
@@ -181,9 +178,9 @@ impl Passwords {
         Ok(())
     }
 
-    fn remove_pw(&mut self) -> Result<(), MessageDialog> {
+    fn remove_pw(&mut self, vault: &mut Vault) -> Result<(), MessageDialog> {
         let (id, name) = self.pw_list.selected_item().expect("No selected item");
-        self.vault.delete_password(name)?;
+        vault.delete_password(name)?;
         self.pw_list.remove_entry(id);
         Ok(())
     }
@@ -205,13 +202,13 @@ impl Passwords {
         ))
     }
 
-    pub fn react_to_dialog(&mut self, res: DialogResult) -> Result<(), MessageDialog> {
+    pub fn react_to_dialog(&mut self, res: DialogResult, vault: &mut Vault) -> Result<(), MessageDialog> {
         let action = self.confirmation_action.clone();
         self.confirmation_action = ConfirmedAction::None;
         if matches!(res, DialogResult::Yes) {
             match action {
-                ConfirmedAction::Update => return self.update_pw(),
-                ConfirmedAction::Remove => return self.remove_pw(),
+                ConfirmedAction::Update => return self.update_pw(vault),
+                ConfirmedAction::Remove => return self.remove_pw(vault),
                 ConfirmedAction::None => {}
             }
         }

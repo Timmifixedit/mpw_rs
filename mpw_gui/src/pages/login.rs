@@ -5,14 +5,13 @@ use crate::dialogs::{create_vault, login};
 use crate::no_op;
 use crate::pages::app_settings::AppSettingsPage;
 use crate::pages::page::{Page, PageMessage};
-use crate::pages::passwords::Passwords;
+use crate::pages::vault::VaultPage;
 use iced::widget::{button, container, pick_list, stack, text};
 use iced::{Alignment, Element, Font, Length, Task};
 use mpw_core::config::get_config_path;
 use mpw_core::path_manager::PathManager;
 use mpw_core::vault::{FatalError, Vault, VaultError};
 use std::path::PathBuf;
-use crate::pages::vault::VaultPage;
 
 #[derive(Clone)]
 enum DialogMessage {
@@ -149,9 +148,9 @@ impl LoginPage {
                         if let Dialog::Login((_, unlocked_vault)) =
                             std::mem::replace(&mut self.dialog, Dialog::None)
                         {
-                            let (page, err) = Passwords::new(unlocked_vault);
+                            let (page, err) = VaultPage::new(unlocked_vault);
                             return Ok((
-                                Page::Vault(VaultPage::new(page)).into(),
+                                Page::Vault(page).into(),
                                 err.map(base::Dialog::Message),
                                 Task::none(),
                             ));
@@ -173,9 +172,9 @@ impl LoginPage {
                             let pw = d.take_password();
                             let mut vault = Vault::new(vault_path, pw.clone())?;
                             vault.unlock(pw)?;
-                            let (page, err) = Passwords::new(vault);
+                            let (page, err) = VaultPage::new(vault);
                             return Ok((
-                                Page::Vault(VaultPage::new(page)).into(),
+                                Page::Vault(page).into(),
                                 err.map(base::Dialog::Message),
                                 Task::none(),
                             ));
