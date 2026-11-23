@@ -85,6 +85,18 @@ impl CreateVaultDialog {
         make_dialog(content)
     }
 
+    fn check_passwords(&mut self) -> Option<(DialogResult, Task<Message>)> {
+        if self.pw1 == self.pw2 && self.pw1 != "".into() {
+            return (DialogResult::Confirmed, Task::none()).into();
+        } else if self.pw1 == "".into() {
+            self.error = Some("Empty password".into());
+        } else {
+            self.error = Some("Passwords do not match".into());
+        }
+
+        None
+    }
+
     pub fn update(&mut self, msg: Message) -> (DialogResult, Task<Message>) {
         match msg {
             Message::Pw1Changed(pw) => {
@@ -100,21 +112,20 @@ impl CreateVaultDialog {
                 return (DialogResult::Cancelled, Task::none());
             }
             Message::Confirm => {
-                if self.pw1 == self.pw2 {
-                    return (DialogResult::Confirmed, Task::none());
+                if let Some(res) = self.check_passwords() {
+                    return res;
                 }
-                self.error = Some("Passwords do not match".into());
             }
             Message::EnterPressed(second_field) => {
-                if second_field && self.pw1 == self.pw2 {
-                    return (DialogResult::Confirmed, Task::none());
-                }
-
                 if !second_field {
                     return (
                         DialogResult::None,
                         iced::widget::operation::focus(self.id2.clone()),
                     );
+                }
+
+                if let Some(res) = self.check_passwords() {
+                    return res;
                 }
             }
         }
