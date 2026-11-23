@@ -1,10 +1,12 @@
 use crate::dialogs::message::MessageDialog;
-use crate::pages::page::PageMessage;
+use crate::pages::login::LoginPage;
+use crate::pages::page::{Page, PageMessage};
 use crate::pages::passwords::Passwords;
 use crate::pages::vault_settings::VaultSettingsPage;
 use crate::pages::{passwords, vault_settings};
 use crate::{dialogs, map_message, no_op};
-use iced::{Element, Task};
+use iced::widget::{button, column, container};
+use iced::{Element, Length, Task};
 use iced_aw::TabLabel;
 use iced_aw::tabs::Tabs;
 use mpw_core::vault::Vault;
@@ -21,6 +23,7 @@ pub enum Message {
     PwPage(passwords::Message),
     SettingsPage(vault_settings::Message),
     TabSelected(Tab),
+    LockPressed,
 }
 
 pub struct VaultPage {
@@ -57,7 +60,12 @@ impl VaultPage {
                 self.settings_page.view().map(Message::SettingsPage),
             )
             .set_active_tab(&self.active_tab);
-        tabs.into()
+
+        container(column![
+            container(tabs).width(Length::Fill).height(Length::Fill),
+            container(button("Lock the vault").on_press(Message::LockPressed)).padding(10)
+        ])
+        .into()
     }
 
     pub fn update(&mut self, message: Message) -> PageMessage<Message> {
@@ -74,6 +82,14 @@ impl VaultPage {
                     self.settings_page.update(msg, &mut self.vault),
                     Message::SettingsPage
                 )
+            }
+            Message::LockPressed => {
+                let err = self
+                    .vault
+                    .lock()
+                    .map_or_else(|err| Some(err.into()), |_| None);
+                let login = LoginPage::new().0;
+                Ok((Page::Login(login).into(), err, Task::none()))
             }
         }
     }
