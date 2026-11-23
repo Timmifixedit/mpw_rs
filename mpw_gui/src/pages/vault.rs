@@ -78,7 +78,17 @@ impl VaultPage {
         }
     }
 
-    pub fn handle_escape(&mut self) {}
+    pub fn handle_escape(&mut self) {
+        match self.active_tab {
+            Tab::Passwords => {
+                self.pw_page.handle_escape();
+            }
+            Tab::Files => {}
+            Tab::Settings => {
+                self.settings_page.handle_escape();
+            }
+        }
+    }
 
     pub fn handle_ctrl_c(&mut self) -> PageMessage<Message> {
         match self.active_tab {

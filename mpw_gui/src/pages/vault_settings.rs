@@ -84,4 +84,8 @@ impl VaultSettingsPage {
             }
         }
     }
+
+    pub fn handle_escape(&mut self) {
+        self.change_pw_dialog = None;
+    }
 }
