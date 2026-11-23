@@ -213,7 +213,7 @@ impl LoginPage {
                         }
                         Err(err) => match err {
                             VaultError::Fatal(FatalError::VaultFileNotFound(_)) => {
-                                let d = create_vault::CreateVaultDialog::new();
+                                let d = create_vault::CreateVaultDialog::new("Create a new vault");
                                 let task = d.focus();
                                 self.dialog = Dialog::Create((d, vault_path));
                                 Ok((

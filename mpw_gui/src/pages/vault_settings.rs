@@ -47,7 +47,7 @@ impl VaultSettingsPage {
     pub fn update(&mut self, message: Message, vault: &mut Vault) -> PageMessage<Message> {
         match message {
             Message::ChangePwPressed => {
-                let dialog = CreateVaultDialog::new();
+                let dialog = CreateVaultDialog::new("Change master password");
                 let task = dialog.focus().map(Message::PwDialog);
                 self.change_pw_dialog = dialog.into();
                 Ok((None, None, task))

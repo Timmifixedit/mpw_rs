@@ -15,6 +15,7 @@ pub enum Message {
 }
 
 pub struct CreateVaultDialog {
+    title: String,
     pw1: SecureString,
     pw2: SecureString,
     error: Option<String>,
@@ -24,8 +25,9 @@ pub struct CreateVaultDialog {
 }
 
 impl CreateVaultDialog {
-    pub fn new() -> Self {
+    pub fn new(title: impl Into<String>) -> Self {
         Self {
+            title: title.into(),
             pw1: "".into(),
             pw2: "".into(),
             error: None,
@@ -38,7 +40,7 @@ impl CreateVaultDialog {
     pub fn view(&self) -> Element<'_, Message> {
         let content = container(
             column![
-                text("Create a new vault").size(20),
+                text(&self.title).size(20),
                 column![
                     text("Password").size(16),
                     text_input("", self.pw1.unsecure())
