@@ -1,5 +1,5 @@
 use crate::dialogs;
-use crate::dialogs::base::Dialog;
+use crate::dialogs::base::DialogStack;
 use crate::dialogs::message::MessageDialog;
 use crate::pages::app_settings::AppSettingsPage;
 use crate::pages::login::LoginPage;
@@ -10,7 +10,7 @@ use iced::{Element, Task};
 #[macro_export]
 macro_rules! no_op {
     () => {
-        Ok((None, None, Task::none()))
+        Ok((None, dialogs![], Task::none()))
     };
 }
 
@@ -27,8 +27,8 @@ pub enum PageEvent {
     Settings(app_settings::Message),
 }
 
-pub type PageMessage<M> = Result<(Option<Page>, Option<Dialog>, Task<M>), MessageDialog>;
-pub type PageResult = Result<(Option<Page>, Option<Dialog>, Task<PageEvent>), MessageDialog>;
+pub type PageMessage<M> = Result<(Option<Page>, DialogStack, Task<M>), MessageDialog>;
+pub type PageResult = Result<(Option<Page>, DialogStack, Task<PageEvent>), MessageDialog>;
 
 #[macro_export]
 macro_rules! map_message {
@@ -90,10 +90,10 @@ impl Page {
         match self {
             Page::Settings(page) => page
                 .react_to_dialog(res)
-                .map(|_| (None, None, Task::none())),
+                .map(|_| (None, dialogs![], Task::none())),
             Page::Vault(page) => page
                 .react_to_dialog(res)
-                .map(|_| (None, None, Task::none())),
+                .map(|_| (None, dialogs![], Task::none())),
             _ => no_op!(),
         }
     }

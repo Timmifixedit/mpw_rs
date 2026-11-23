@@ -1,10 +1,11 @@
 use crate::controls::list_box::ListBox;
 use crate::controls::pw_details::PasswordDetails;
 use crate::controls::{list_box, pw_details};
+use crate::dialogs::base::DialogStack;
 use crate::dialogs::confirmation::{ConfirmationDialog, DialogResult};
 use crate::dialogs::message::{MessageDialog, MessageType};
-use crate::no_op;
 use crate::pages::page::PageMessage;
+use crate::{dialogs, no_op};
 use iced::widget::{button, container, row, space, text_input};
 use iced::{Alignment, Element, Length, Task};
 use mpw_core::path_manager::Search;
@@ -113,7 +114,7 @@ impl Passwords {
             }
             Message::PwInfo(msg) => {
                 let (pw_updated, task) = self.pw_info.update(msg);
-                let mut dialog = None;
+                let mut dialog = DialogStack::default();
                 if pw_updated {
                     if let Some((_, name)) = self.pw_list.selected_item()
                         && name == ""
@@ -121,7 +122,7 @@ impl Passwords {
                         self.update_pw(vault)?;
                     } else {
                         self.confirmation_action = ConfirmedAction::Update;
-                        dialog = Some(
+                        dialog.push(
                             ConfirmationDialog::new(
                                 "Please confirm that you want to update the password.".into(),
                                 false,
@@ -195,14 +196,18 @@ impl Passwords {
 
         Ok((
             None,
-            None,
+            dialogs![],
             clipboard::write(self.pw_info.get_pw().unsecure().to_string()).chain(
                 clipboard::write_primary(self.pw_info.get_login().to_string()), // TODO Windows??
             ),
         ))
     }
 
-    pub fn react_to_dialog(&mut self, res: DialogResult, vault: &mut Vault) -> Result<(), MessageDialog> {
+    pub fn react_to_dialog(
+        &mut self,
+        res: DialogResult,
+        vault: &mut Vault,
+    ) -> Result<(), MessageDialog> {
         let action = self.confirmation_action.clone();
         self.confirmation_action = ConfirmedAction::None;
         if matches!(res, DialogResult::Yes) {

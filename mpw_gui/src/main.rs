@@ -4,7 +4,7 @@ mod pages;
 
 use iced::{Result, Subscription, Task, Theme};
 
-use crate::dialogs::base::Dialog;
+use crate::dialogs::base::{Dialog, DialogStack};
 use crate::pages::login::LoginPage;
 use crate::pages::page::{Page, PageResult};
 use dialogs::base::DialogResult;
@@ -22,7 +22,7 @@ enum Message {
 
 struct State {
     current_page: Page,
-    info_dialog: Option<Dialog>,
+    info_dialog: DialogStack,
 }
 
 impl State {
@@ -30,18 +30,14 @@ impl State {
         let (page, error) = LoginPage::new();
         State {
             current_page: Page::Login(page),
-            info_dialog: error.map(|d| d.into()),
+            info_dialog: error.map_or(dialogs![], |d| d.into()),
         }
     }
 }
 
 fn view(state: &State) -> Element<'_, Message> {
     let page_view = state.current_page.view().map(Message::Page);
-    if let Some(dialog) = &state.info_dialog {
-        iced::widget::stack![page_view, dialog.view().map(Message::Dialog)].into()
-    } else {
-        page_view
-    }
+    iced::widget::stack![page_view, state.info_dialog.view().map(Message::Dialog)].into()
 }
 
 fn events(_: &State) -> Subscription<Message> {
@@ -76,7 +72,7 @@ fn handle_page_result(result: PageResult, state: &mut State) -> Task<Message> {
             task.map(Message::Page)
         }
         Err(err) => {
-            state.info_dialog = Some(err.into());
+            state.info_dialog = err.into();
             Task::none()
         }
     }
@@ -86,22 +82,21 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
     match message {
         Message::Page(pe) => handle_page_result(state.current_page.update(pe), state),
         Message::Dialog(msg) => {
-            if let Some(dialog) = &mut state.info_dialog {
-                match dialog.update(msg) {
-                    DialogResult::Confirmation(res) => {
-                        let res =
-                            handle_page_result(state.current_page.react_to_dialog(res), state);
-                        if let Some(d) = state.info_dialog.as_ref()
-                            && matches!(d, Dialog::Confirmation(_))
-                        {
-                            state.info_dialog = None;
-                        }
-                        return res;
+            match state.info_dialog.update(msg) {
+                DialogResult::Confirmation(res) => {
+                    let res = handle_page_result(state.current_page.react_to_dialog(res), state);
+                    if state
+                        .info_dialog
+                        .next()
+                        .is_some_and(|d| matches!(d, Dialog::Confirmation(_)))
+                    {
+                        state.info_dialog.take_next();
                     }
-                    DialogResult::Message(close) => {
-                        if close {
-                            state.info_dialog = None;
-                        }
+                    return res;
+                }
+                DialogResult::Message(close) => {
+                    if close {
+                        state.info_dialog.take_next();
                     }
                 }
             }
@@ -109,18 +104,20 @@ fn update(state: &mut State, message: Message) -> Task<Message> {
             Task::none()
         }
         Message::EscapePressed => {
-            if state.info_dialog.is_some() {
-                state.info_dialog = None;
+            if state.info_dialog.next().is_some() {
+                state.info_dialog.take_next();
             } else {
                 state.current_page.handle_escape();
             }
             Task::none()
         }
         Message::EnterPressed => {
-            if let Some(dialog) = &state.info_dialog
-                && matches!(dialog, Dialog::Message(_))
+            if state
+                .info_dialog
+                .next()
+                .is_some_and(|d| matches!(d, Dialog::Message(_)))
             {
-                state.info_dialog = None;
+                state.info_dialog.take_next();
             }
             Task::none()
         }

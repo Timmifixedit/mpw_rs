@@ -1,9 +1,10 @@
+use crate::dialogs::base::DialogStack;
+use crate::dialogs::create_vault;
 use crate::dialogs::create_vault::CreateVaultDialog;
 use crate::dialogs::login::DialogResult;
 use crate::dialogs::message::{MessageDialog, MessageType};
-use crate::dialogs::{base, create_vault};
-use crate::no_op;
 use crate::pages::page::PageMessage;
+use crate::{dialogs, no_op};
 use iced::widget::{button, column, container, stack};
 use iced::{Element, Length, Task};
 use mpw_core::vault::Vault;
@@ -50,7 +51,7 @@ impl VaultSettingsPage {
                 let dialog = CreateVaultDialog::new("Change master password");
                 let task = dialog.focus().map(Message::PwDialog);
                 self.change_pw_dialog = dialog.into();
-                Ok((None, None, task))
+                Ok((None, dialogs![], task))
             }
             Message::PwDialog(msg) => {
                 if let Some(dialog) = self.change_pw_dialog.as_mut() {
@@ -66,10 +67,10 @@ impl VaultSettingsPage {
                                 vault.change_master_password(dialog.take_password())?;
                                 return Ok((
                                     None,
-                                    base::Dialog::Message(MessageDialog::new(
+                                    MessageDialog::new(
                                         "Password changed successfully",
                                         MessageType::Info,
-                                    ))
+                                    )
                                     .into(),
                                     Task::none(),
                                 ));
@@ -77,7 +78,7 @@ impl VaultSettingsPage {
                         }
                         DialogResult::None => {}
                     }
-                    Ok((None, None, task.map(Message::PwDialog)))
+                    Ok((None, dialogs![], task.map(Message::PwDialog)))
                 } else {
                     no_op!()
                 }

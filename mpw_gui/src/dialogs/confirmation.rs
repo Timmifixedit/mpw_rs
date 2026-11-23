@@ -1,4 +1,4 @@
-use crate::dialogs::base::{Dialog, make_dialog};
+use crate::dialogs::base::make_dialog;
 use crate::pages::page::PageMessage;
 use iced::widget::{button, column, container, row, space, text};
 use iced::{Alignment, Element, Task};
@@ -32,7 +32,7 @@ impl ConfirmationDialog {
     pub fn new_request<M>(question: String, has_cancel: bool) -> PageMessage<M> {
         Ok((
             None,
-            Some(Dialog::Confirmation(Self::new(question, has_cancel))),
+            Self::new(question, has_cancel).into(),
             Task::none(),
         ))
     }

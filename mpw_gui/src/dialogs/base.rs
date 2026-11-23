@@ -95,3 +95,69 @@ impl Dialog {
         }
     }
 }
+
+#[derive(Default)]
+pub struct DialogStack {
+    dialogs: Vec<Dialog>,
+}
+
+impl From<MessageDialog> for DialogStack {
+    fn from(value: MessageDialog) -> Self {
+        Self {
+            dialogs: vec![value.into()],
+        }
+    }
+}
+
+impl From<ConfirmationDialog> for DialogStack {
+    fn from(value: ConfirmationDialog) -> Self {
+        Self {
+            dialogs: vec![value.into()],
+        }
+    }
+}
+
+impl DialogStack {
+    pub fn from_vec(vec: Vec<Dialog>) -> Self {
+        Self { dialogs: vec }
+    }
+
+    pub fn next(&self) -> Option<&Dialog> {
+        self.dialogs.iter().next_back()
+    }
+
+    pub fn next_mut(&mut self) -> Option<&mut Dialog> {
+        self.dialogs.iter_mut().next_back()
+    }
+
+    pub fn take_next(&mut self) -> Option<Dialog> {
+        self.dialogs.pop()
+    }
+
+    pub fn view(&self) -> Element<'_, Message> {
+        if let Some(dialog) = self.next() {
+            dialog.view()
+        } else {
+            space().into()
+        }
+    }
+
+    pub fn update(&mut self, message: Message) -> DialogResult {
+        if let Some(dialog) = self.next_mut() {
+            dialog.update(message)
+        } else {
+            DialogResult::Message(false)
+        }
+    }
+
+    pub fn push(&mut self, dialog: Dialog) {
+        self.dialogs.push(dialog);
+    }
+}
+
+#[macro_export]
+macro_rules! dialogs {
+    ($($elem:expr),* $(,)?) => {
+            DialogStack::from_vec(vec![$($elem),*])
+    };
+}

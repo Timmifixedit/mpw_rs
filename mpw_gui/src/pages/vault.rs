@@ -1,3 +1,4 @@
+use crate::dialogs::base::DialogStack;
 use crate::dialogs::message::MessageDialog;
 use crate::pages::login::LoginPage;
 use crate::pages::page::{Page, PageMessage};
@@ -84,11 +85,14 @@ impl VaultPage {
                 )
             }
             Message::LockPressed => {
-                let err = self
+                let mut err = self
                     .vault
                     .lock()
-                    .map_or_else(|err| Some(err.into()), |_| None);
-                let login = LoginPage::new().0;
+                    .map_or_else(|err| MessageDialog::from(err).into(), |_| dialogs![]);
+                let (login, login_page_error) = LoginPage::new();
+                if let Some(e) = login_page_error {
+                    err.push(e.into());
+                }
                 Ok((Page::Login(login).into(), err, Task::none()))
             }
         }

@@ -1,11 +1,11 @@
-use crate::dialogs::base;
+use crate::dialogs::base::DialogStack;
 use crate::dialogs::login::DialogResult;
 use crate::dialogs::message::{MessageDialog, MessageType};
 use crate::dialogs::{create_vault, login};
-use crate::no_op;
 use crate::pages::app_settings::AppSettingsPage;
 use crate::pages::page::{Page, PageMessage};
 use crate::pages::vault::VaultPage;
+use crate::{dialogs, no_op};
 use iced::widget::{button, container, pick_list, stack, text};
 use iced::{Alignment, Element, Font, Length, Task};
 use mpw_core::config::get_config_path;
@@ -140,9 +140,14 @@ impl LoginPage {
                     }
                     DialogResult::Confirmed => {
                         let res = vault.unlock(d.take_password());
-                        if res.is_err_and(|err| matches!(err, CoreError(WrongPassword))) {
+                        if res
+                            .as_ref()
+                            .is_err_and(|err| matches!(err, CoreError(WrongPassword)))
+                        {
                             d.set_error("Wrong password");
                             return no_op!();
+                        } else if res.is_err() {
+                            return Err(res.err().unwrap().into());
                         }
 
                         if let Dialog::Login((_, unlocked_vault)) =
@@ -151,7 +156,7 @@ impl LoginPage {
                             let (page, err) = VaultPage::new(unlocked_vault);
                             return Ok((
                                 Page::Vault(page).into(),
-                                err.map(base::Dialog::Message),
+                                err.map_or(dialogs![], |d| d.into()),
                                 Task::none(),
                             ));
                         }
@@ -175,7 +180,7 @@ impl LoginPage {
                             let (page, err) = VaultPage::new(vault);
                             return Ok((
                                 Page::Vault(page).into(),
-                                err.map(base::Dialog::Message),
+                                err.map_or(dialogs![], |d| d.into()),
                                 Task::none(),
                             ));
                         }
@@ -185,7 +190,7 @@ impl LoginPage {
 
                 return Ok((
                     None,
-                    None,
+                    dialogs![],
                     task.map(|msg| Message::DialogMessage(DialogMessage::Create(msg))),
                 ));
             }
@@ -207,7 +212,7 @@ impl LoginPage {
                             self.dialog = Dialog::Login((d, vault));
                             Ok((
                                 None,
-                                None,
+                                dialogs![],
                                 task.map(|msg| Message::DialogMessage(DialogMessage::Login(msg))),
                             ))
                         }
@@ -218,7 +223,7 @@ impl LoginPage {
                                 self.dialog = Dialog::Create((d, vault_path));
                                 Ok((
                                     None,
-                                    None,
+                                    dialogs![],
                                     task.map(|msg| {
                                         Message::DialogMessage(DialogMessage::Create(msg))
                                     }),
@@ -239,7 +244,7 @@ impl LoginPage {
             Message::SettingsPressed => {
                 return Ok((
                     Page::Settings(AppSettingsPage::new(self.vault_entries.clone())).into(),
-                    None,
+                    dialogs![],
                     Task::none(),
                 ));
             }

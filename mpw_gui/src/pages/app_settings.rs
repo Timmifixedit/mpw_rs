@@ -2,12 +2,12 @@ use crate::controls::list_box;
 use crate::controls::list_box::{ItemId, ListBox};
 use crate::controls::vault_details;
 use crate::controls::vault_details::VaultDetailsView;
-use crate::dialogs::base::Dialog;
+use crate::dialogs::base::DialogStack;
 use crate::dialogs::confirmation::{ConfirmationDialog, DialogResult};
 use crate::dialogs::message::{MessageDialog, MessageType};
-use crate::no_op;
 use crate::pages::login::LoginPage;
 use crate::pages::page::{Page, PageMessage};
+use crate::{dialogs, no_op};
 use iced::Element;
 use iced::Task;
 use iced::widget::{button, column, container, row, space, text_input};
@@ -118,7 +118,7 @@ impl AppSettingsPage {
                 let (page, error) = LoginPage::new();
                 return Ok((
                     Some(Page::Login(page)),
-                    error.map(Dialog::Message),
+                    error.map_or(dialogs![], |d| d.into()),
                     Task::none(),
                 ));
             }
@@ -147,7 +147,8 @@ impl AppSettingsPage {
                 let added = self.list_view.add_item("".into());
                 self.search_string = "".into();
                 self.list_view.select(added);
-                self.vault_item_detail.update_info("".into(), "".into(), false);
+                self.vault_item_detail
+                    .update_info("".into(), "".into(), false);
             }
             Message::RemovePressed => {
                 if let Some((id, name)) = self.list_view.selected_item() {
