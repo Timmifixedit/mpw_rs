@@ -12,6 +12,7 @@ use mpw_core::config::get_config_path;
 use mpw_core::path_manager::PathManager;
 use mpw_core::vault::{FatalError, Vault, VaultError};
 use std::path::PathBuf;
+use crate::pages::vault::VaultPage;
 
 #[derive(Clone)]
 enum DialogMessage {
@@ -150,7 +151,7 @@ impl LoginPage {
                         {
                             let (page, err) = Passwords::new(unlocked_vault);
                             return Ok((
-                                Page::Vault(page).into(),
+                                Page::Vault(VaultPage::new(page)).into(),
                                 err.map(base::Dialog::Message),
                                 Task::none(),
                             ));
@@ -174,7 +175,7 @@ impl LoginPage {
                             vault.unlock(pw)?;
                             let (page, err) = Passwords::new(vault);
                             return Ok((
-                                Page::Vault(page).into(),
+                                Page::Vault(VaultPage::new(page)).into(),
                                 err.map(base::Dialog::Message),
                                 Task::none(),
                             ));
