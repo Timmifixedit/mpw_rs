@@ -602,7 +602,7 @@ impl Vault {
         Ok(())
     }
 
-    pub fn rename_password(&mut self, old_name: &str, new_name: &str) -> Result<(), VaultError> {
+    pub fn rename_password(&self, old_name: &str, new_name: &str) -> Result<(), VaultError> {
         assert_valid_name(new_name)?;
         let (pw_path, login_path) = self.get_pw_by_name(old_name)?;
         if self.get_pw_by_name(new_name).is_ok() {
