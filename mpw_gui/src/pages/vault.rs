@@ -1,5 +1,5 @@
 use crate::dialogs::base::DialogStack;
-use crate::dialogs::message::MessageDialog;
+use crate::dialogs::message::{MessageDialog, MessageType};
 use crate::pages::login::LoginPage;
 use crate::pages::page::{Page, PageMessage};
 use crate::pages::passwords::Passwords;
@@ -7,8 +7,8 @@ use crate::pages::vault_settings::VaultSettingsPage;
 use crate::pages::{passwords, vault_settings};
 use crate::util::vault_handler::VaultHandler;
 use crate::{dialogs, map_message, no_op};
-use iced::widget::{button, column, container};
-use iced::{Element, Length, Task};
+use iced::widget::{button, column, container, opaque, space, stack};
+use iced::{Color, Element, Length, Task};
 use iced_aw::TabLabel;
 use iced_aw::tabs::Tabs;
 use mpw_core::vault::Vault;
@@ -26,6 +26,8 @@ pub enum Message {
     SettingsPage(vault_settings::Message),
     TabSelected(Tab),
     LockPressed,
+    LockingFinished(Result<(), MessageDialog>),
+    LockMessageDialog(dialogs::message::Message),
 }
 
 pub struct VaultPage {
@@ -33,6 +35,8 @@ pub struct VaultPage {
     pw_page: Passwords,
     settings_page: VaultSettingsPage,
     vault_handler: VaultHandler,
+    shutting_down: bool,
+    shutdown_message: Option<MessageDialog>,
 }
 
 impl VaultPage {
@@ -45,6 +49,8 @@ impl VaultPage {
                 pw_page,
                 settings_page: VaultSettingsPage::new(vault_handler.clone()),
                 vault_handler,
+                shutting_down: false,
+                shutdown_message: None,
             },
             err,
         )
@@ -64,14 +70,51 @@ impl VaultPage {
             )
             .set_active_tab(&self.active_tab);
 
+        let glass_pane = opaque(
+            container(space())
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .style(|_| container::Style {
+                    background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.7).into()),
+                    ..Default::default()
+                }),
+        );
+
         container(column![
-            container(tabs).width(Length::Fill).height(Length::Fill),
+            stack![
+                container(tabs).width(Length::Fill).height(Length::Fill),
+                if let Some(msg) = self.shutdown_message.as_ref() {
+                    msg.view().map(Message::LockMessageDialog)
+                } else if self.shutting_down {
+                    glass_pane
+                } else {
+                    space().into()
+                }
+            ],
             container(button("Lock the vault").on_press(Message::LockPressed)).padding(10)
         ])
         .into()
     }
 
+    fn back_to_login(&self) -> PageMessage<Message> {
+        let (page, err) = LoginPage::new();
+        Ok((
+            Some(Page::Login(page)),
+            err.map_or(dialogs![], |e| e.into()),
+            Task::none(),
+        ))
+    }
+
     pub fn update(&mut self, message: Message) -> PageMessage<Message> {
+        if self.shutting_down
+            && !matches!(
+                message,
+                Message::LockingFinished(_) | Message::LockMessageDialog(_)
+            )
+        {
+            return no_op!();
+        }
+
         match message {
             Message::PwPage(msg) => {
                 map_message!(self.pw_page.update(msg), Message::PwPage)
@@ -84,15 +127,39 @@ impl VaultPage {
                 map_message!(self.settings_page.update(msg), Message::SettingsPage)
             }
             Message::LockPressed => {
-                let mut err = self
+                let lock_task = self
                     .vault_handler
-                    .blocking_operation_mut(|v| v.lock())
-                    .map_or_else(|err| MessageDialog::from(err).into(), |_| dialogs![]);
-                let (login, login_page_error) = LoginPage::new();
-                if let Some(e) = login_page_error {
-                    err.push(e.into());
+                    .run_task_mut(|v| v.lock().map_err(|e| e.into()), Message::LockingFinished);
+                self.shutting_down = true;
+                self.pw_page.handle_shutdown();
+                Ok((
+                    None,
+                    MessageDialog::new(
+                        "Vault is shutting down. Please wait while files are encrypted",
+                        MessageType::Info,
+                    )
+                    .into(),
+                    lock_task,
+                ))
+            }
+            Message::LockingFinished(res) => {
+                if let Err(lock_err) = res {
+                    self.shutdown_message = Some(lock_err);
+                    return no_op!();
                 }
-                Ok((Page::Login(login).into(), err, Task::none()))
+
+                self.back_to_login()
+            }
+            Message::LockMessageDialog(msg) => {
+                if self
+                    .shutdown_message
+                    .as_mut()
+                    .is_some_and(|d| d.update(msg))
+                {
+                    self.back_to_login()
+                } else {
+                    no_op!()
+                }
             }
         }
     }

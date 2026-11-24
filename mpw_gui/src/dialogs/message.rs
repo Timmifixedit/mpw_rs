@@ -26,6 +26,7 @@ impl MessageType {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct MessageDialog {
     content: text_editor::Content,
     m_type: MessageType,

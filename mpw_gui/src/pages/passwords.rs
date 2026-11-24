@@ -190,12 +190,21 @@ impl Passwords {
 
     fn remove_pw(&mut self) -> Result<(), MessageDialog> {
         let (id, name) = self.pw_list.selected_item().expect("No selected item");
-        self.vault_handler.blocking_operation(|v|v.delete_password(name))?;
+        self.vault_handler
+            .blocking_operation(|v| v.delete_password(name))?;
         self.pw_list.remove_entry(id);
         Ok(())
     }
 
-    pub fn handle_escape(&mut self) {}
+    pub fn handle_escape(&mut self) {
+        self.pw_list.unselect();
+        self.pw_info.clear();
+    }
+
+    pub fn handle_shutdown(&mut self) {
+        self.pw_list.unselect();
+        self.pw_info.clear();
+    }
 
     pub fn handle_ctrl_c(&mut self) -> PageMessage<Message> {
         use iced::clipboard;

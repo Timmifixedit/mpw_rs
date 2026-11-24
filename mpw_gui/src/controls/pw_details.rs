@@ -119,4 +119,10 @@ impl PasswordDetails {
         self.login = login;
         self.pw_input.set_password(pw);
     }
+
+    pub fn clear(&mut self) {
+        self.name = "".to_string();
+        self.login = "".to_string();
+        self.pw_input.clear_password();
+    }
 }
