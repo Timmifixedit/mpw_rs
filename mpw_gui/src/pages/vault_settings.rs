@@ -4,6 +4,7 @@ use crate::dialogs::create_vault::CreateVaultDialog;
 use crate::dialogs::login::DialogResult;
 use crate::dialogs::message::{MessageDialog, MessageType};
 use crate::pages::page::PageMessage;
+use crate::util::vault_handler::VaultHandler;
 use crate::{dialogs, no_op};
 use iced::widget::{button, column, container, stack};
 use iced::{Element, Length, Task};
@@ -16,12 +17,14 @@ pub enum Message {
 }
 
 pub struct VaultSettingsPage {
+    vault_handler: VaultHandler,
     change_pw_dialog: Option<CreateVaultDialog>,
 }
 
 impl VaultSettingsPage {
-    pub fn new() -> Self {
+    pub fn new(vault_handler: VaultHandler) -> Self {
         Self {
+            vault_handler,
             change_pw_dialog: None,
         }
     }
@@ -45,7 +48,7 @@ impl VaultSettingsPage {
         }
     }
 
-    pub fn update(&mut self, message: Message, vault: &mut Vault) -> PageMessage<Message> {
+    pub fn update(&mut self, message: Message) -> PageMessage<Message> {
         match message {
             Message::ChangePwPressed => {
                 let dialog = CreateVaultDialog::new("Change master password");
@@ -64,7 +67,9 @@ impl VaultSettingsPage {
                             if let Some(dialog) =
                                 std::mem::replace(&mut self.change_pw_dialog, None)
                             {
-                                vault.change_master_password(dialog.take_password())?;
+                                self.vault_handler.blocking_operation_mut(|v| {
+                                    v.change_master_password(dialog.take_password())
+                                })?;
                                 return Ok((
                                     None,
                                     MessageDialog::new(

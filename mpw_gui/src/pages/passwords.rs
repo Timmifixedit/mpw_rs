@@ -5,6 +5,7 @@ use crate::dialogs::base::DialogStack;
 use crate::dialogs::confirmation::{ConfirmationDialog, DialogResult};
 use crate::dialogs::message::{MessageDialog, MessageType};
 use crate::pages::page::PageMessage;
+use crate::util::vault_handler::VaultHandler;
 use crate::{dialogs, no_op};
 use iced::widget::{button, container, row, space, text_input};
 use iced::{Alignment, Element, Length, Task};
@@ -28,6 +29,7 @@ enum ConfirmedAction {
 }
 
 pub struct Passwords {
+    vault_handler: VaultHandler,
     pw_list: ListBox<String>,
     pw_info: PasswordDetails,
     search_string: String,
@@ -35,16 +37,18 @@ pub struct Passwords {
 }
 
 impl Passwords {
-    pub fn new(vault: &Vault) -> (Self, Option<MessageDialog>) {
-        let (pw_list, message) = match vault.list_passwords(Search::None) {
-            Ok(pws) => (pws, None),
-            Err(err) => (
-                vec![],
-                Some(MessageDialog::new(err.to_string(), MessageType::Error)),
-            ),
-        };
+    pub fn new(vault_handler: VaultHandler) -> (Self, Option<MessageDialog>) {
+        let (pw_list, message) =
+            match vault_handler.blocking_operation(|v| v.list_passwords(Search::None)) {
+                Ok(pws) => (pws, None),
+                Err(err) => (
+                    vec![],
+                    Some(MessageDialog::new(err.to_string(), MessageType::Error)),
+                ),
+            };
         (
             Passwords {
+                vault_handler,
                 pw_list: ListBox::new(pw_list),
                 search_string: String::new(),
                 pw_info: PasswordDetails::new(),
@@ -95,7 +99,7 @@ impl Passwords {
             .into()
     }
 
-    pub fn update(&mut self, message: Message, vault: &mut Vault) -> PageMessage<Message> {
+    pub fn update(&mut self, message: Message) -> PageMessage<Message> {
         match message {
             Message::SearchChanged(search) => {
                 self.search_string = search;
@@ -106,7 +110,9 @@ impl Passwords {
                     if name == "" {
                         self.pw_info.update_info("".into(), "".into(), "".into());
                     } else {
-                        let (pw, login) = vault.retrieve_password(name)?;
+                        let (pw, login) = self
+                            .vault_handler
+                            .blocking_operation(|v| v.retrieve_password(name))?;
                         self.pw_info
                             .update_info(name.clone(), pw, login.unwrap_or_default());
                     }
@@ -119,7 +125,7 @@ impl Passwords {
                     if let Some((_, name)) = self.pw_list.selected_item()
                         && name == ""
                     {
-                        self.update_pw(vault)?;
+                        self.update_pw()?;
                     } else {
                         self.confirmation_action = ConfirmedAction::Update;
                         dialog.push(
@@ -157,12 +163,13 @@ impl Passwords {
         no_op!()
     }
 
-    fn update_pw(&mut self, vault: &mut Vault) -> Result<(), MessageDialog> {
+    fn update_pw(&mut self) -> Result<(), MessageDialog> {
         let (id, orig_name) = self.pw_list.selected_item().expect("No selected item");
         let is_new_pw = orig_name == "";
         let new_name = self.pw_info.get_name();
         if orig_name != new_name && !is_new_pw {
-            vault.rename_password(orig_name, new_name)?;
+            self.vault_handler
+                .blocking_operation(|v| v.rename_password(orig_name, new_name))?;
         }
 
         let login = if self.pw_info.get_login() == "" {
@@ -170,7 +177,9 @@ impl Passwords {
         } else {
             Some(self.pw_info.get_login().to_string())
         };
-        vault.write_password(new_name, self.pw_info.get_pw().clone(), login, !is_new_pw)?;
+        self.vault_handler.blocking_operation(|v| {
+            v.write_password(new_name, self.pw_info.get_pw().clone(), login, !is_new_pw)
+        })?;
 
         if orig_name != new_name {
             self.pw_list.update_entry(id, new_name.to_string());
@@ -179,9 +188,9 @@ impl Passwords {
         Ok(())
     }
 
-    fn remove_pw(&mut self, vault: &mut Vault) -> Result<(), MessageDialog> {
+    fn remove_pw(&mut self) -> Result<(), MessageDialog> {
         let (id, name) = self.pw_list.selected_item().expect("No selected item");
-        vault.delete_password(name)?;
+        self.vault_handler.blocking_operation(|v|v.delete_password(name))?;
         self.pw_list.remove_entry(id);
         Ok(())
     }
@@ -203,17 +212,13 @@ impl Passwords {
         ))
     }
 
-    pub fn react_to_dialog(
-        &mut self,
-        res: DialogResult,
-        vault: &mut Vault,
-    ) -> Result<(), MessageDialog> {
+    pub fn react_to_dialog(&mut self, res: DialogResult) -> Result<(), MessageDialog> {
         let action = self.confirmation_action.clone();
         self.confirmation_action = ConfirmedAction::None;
         if matches!(res, DialogResult::Yes) {
             match action {
-                ConfirmedAction::Update => return self.update_pw(vault),
-                ConfirmedAction::Remove => return self.remove_pw(vault),
+                ConfirmedAction::Update => return self.update_pw(),
+                ConfirmedAction::Remove => return self.remove_pw(),
                 ConfirmedAction::None => {}
             }
         }

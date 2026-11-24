@@ -5,6 +5,7 @@ use crate::pages::page::{Page, PageMessage};
 use crate::pages::passwords::Passwords;
 use crate::pages::vault_settings::VaultSettingsPage;
 use crate::pages::{passwords, vault_settings};
+use crate::util::vault_handler::VaultHandler;
 use crate::{dialogs, map_message, no_op};
 use iced::widget::{button, column, container};
 use iced::{Element, Length, Task};
@@ -31,18 +32,19 @@ pub struct VaultPage {
     active_tab: Tab,
     pw_page: Passwords,
     settings_page: VaultSettingsPage,
-    vault: Vault,
+    vault_handler: VaultHandler,
 }
 
 impl VaultPage {
     pub fn new(vault: Vault) -> (Self, Option<MessageDialog>) {
-        let (pw_page, err) = Passwords::new(&vault);
+        let vault_handler = VaultHandler::new(vault);
+        let (pw_page, err) = Passwords::new(vault_handler.clone());
         (
             Self {
                 active_tab: Tab::Passwords,
                 pw_page,
-                settings_page: VaultSettingsPage::new(),
-                vault,
+                settings_page: VaultSettingsPage::new(vault_handler.clone()),
+                vault_handler,
             },
             err,
         )
@@ -72,22 +74,19 @@ impl VaultPage {
     pub fn update(&mut self, message: Message) -> PageMessage<Message> {
         match message {
             Message::PwPage(msg) => {
-                map_message!(self.pw_page.update(msg, &mut self.vault), Message::PwPage)
+                map_message!(self.pw_page.update(msg), Message::PwPage)
             }
             Message::TabSelected(tab) => {
                 self.active_tab = tab;
                 no_op!()
             }
             Message::SettingsPage(msg) => {
-                map_message!(
-                    self.settings_page.update(msg, &mut self.vault),
-                    Message::SettingsPage
-                )
+                map_message!(self.settings_page.update(msg), Message::SettingsPage)
             }
             Message::LockPressed => {
                 let mut err = self
-                    .vault
-                    .lock()
+                    .vault_handler
+                    .blocking_operation_mut(|v| v.lock())
                     .map_or_else(|err| MessageDialog::from(err).into(), |_| dialogs![]);
                 let (login, login_page_error) = LoginPage::new();
                 if let Some(e) = login_page_error {
@@ -130,7 +129,7 @@ impl VaultPage {
     ) -> Result<(), MessageDialog> {
         match self.active_tab {
             Tab::Passwords => {
-                return self.pw_page.react_to_dialog(res, &mut self.vault);
+                return self.pw_page.react_to_dialog(res);
             }
             Tab::Files => {}
             Tab::Settings => {}

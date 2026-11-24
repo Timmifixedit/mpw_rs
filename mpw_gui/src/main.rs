@@ -1,6 +1,7 @@
 pub mod controls;
 pub mod dialogs;
 mod pages;
+mod util;
 
 use iced::{Result, Subscription, Task, Theme};
 
