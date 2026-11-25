@@ -27,12 +27,15 @@ struct State {
 }
 
 impl State {
-    pub fn new() -> Self {
-        let (page, error) = LoginPage::new();
-        State {
-            current_page: Page::Login(page),
-            info_dialog: error.map_or(dialogs![], |d| d.into()),
-        }
+    pub fn new() -> (Self, Task<Message>) {
+        let (page, error, task) = LoginPage::new();
+        (
+            State {
+                current_page: Page::Login(page),
+                info_dialog: error,
+            },
+            task.map(pages::page::PageEvent::Login).map(Message::Page),
+        )
     }
 }
 

@@ -42,38 +42,52 @@ pub struct LoginPage {
 }
 
 impl LoginPage {
-    pub fn new() -> (Self, Option<MessageDialog>) {
-        let mut message = None;
+    pub fn new() -> (Self, DialogStack, Task<Message>) {
+        let mut message = dialogs![];
         let vault_entries = match get_config_path() {
             Ok(path) => match PathManager::load(&path) {
                 Ok(pm) => pm,
                 Err(e) => {
-                    message = Some(MessageDialog::new(
-                        format!("Could not load config file ({}): {}", path.display(), e),
-                        MessageType::Warning,
-                    ));
+                    message.push(
+                        MessageDialog::new(
+                            format!("Could not load config file ({}): {}", path.display(), e),
+                            MessageType::Warning,
+                        )
+                        .into(),
+                    );
                     PathManager::default()
                 }
             },
             Err(e) => {
-                message = Some(MessageDialog::new(
+                message.push(MessageDialog::new(
                     format!(
-                        "Could not find or create config file: '{}'. You won't be able to save your vault locations",
-                        e
+                        "Could not find or create config file: '{e}'. You won't be able to save your vault locations"
                     ),
                     MessageType::Error,
-                ));
+                ).into());
                 PathManager::default()
             }
         };
-
+        let (dialog, task) = if let Some(vault_name) = vault_entries.get_default_name() {
+            let path = vault_entries.get(vault_name).unwrap().to_owned();
+            match Self::load_or_create_vault(path) {
+                Ok((dialog, task)) => (dialog, task),
+                Err(err) => {
+                    message.push(err.into());
+                    (Dialog::None, Task::none())
+                }
+            }
+        } else {
+            (Dialog::None, Task::none())
+        };
         (
             LoginPage {
                 selected_vault: vault_entries.get_default_name().map(|name| name.to_owned()),
                 vault_entries,
-                dialog: Dialog::None,
+                dialog,
             },
             message,
+            task,
         )
     }
 
@@ -209,39 +223,38 @@ impl LoginPage {
         no_op!()
     }
 
+    fn load_or_create_vault(path: PathBuf) -> Result<(Dialog, Task<Message>), MessageDialog> {
+        match Vault::load(path.clone()) {
+            Ok(vault) => {
+                let d = login::LoginDialog::new();
+                let task = d.focus();
+                Ok((
+                    Dialog::Login((d, vault)),
+                    task.map(|msg| Message::DialogMessage(DialogMessage::Login(msg))),
+                ))
+            }
+            Err(err) => match err {
+                VaultError::Fatal(FatalError::VaultFileNotFound(_)) => {
+                    let d = create_vault::CreateVaultDialog::new("Create a new vault");
+                    let task = d.focus();
+                    Ok((
+                        Dialog::Create((d, path)),
+                        task.map(|msg| Message::DialogMessage(DialogMessage::Create(msg))),
+                    ))
+                }
+                _ => Err(err.into()),
+            },
+        }
+    }
+
     pub fn update(&mut self, message: Message) -> PageMessage<Message> {
         match message {
             Message::LoadPressed => {
                 if let Some(vault_name) = self.selected_vault.as_ref() {
                     let vault_path = self.vault_entries.get(vault_name).unwrap().to_owned();
-                    let vault_res = Vault::load(vault_path.clone());
-                    return match vault_res {
-                        Ok(vault) => {
-                            let d = login::LoginDialog::new();
-                            let task = d.focus();
-                            self.dialog = Dialog::Login((d, vault));
-                            Ok((
-                                None,
-                                dialogs![],
-                                task.map(|msg| Message::DialogMessage(DialogMessage::Login(msg))),
-                            ))
-                        }
-                        Err(err) => match err {
-                            VaultError::Fatal(FatalError::VaultFileNotFound(_)) => {
-                                let d = create_vault::CreateVaultDialog::new("Create a new vault");
-                                let task = d.focus();
-                                self.dialog = Dialog::Create((d, vault_path));
-                                Ok((
-                                    None,
-                                    dialogs![],
-                                    task.map(|msg| {
-                                        Message::DialogMessage(DialogMessage::Create(msg))
-                                    }),
-                                ))
-                            }
-                            _ => Err(err.into()),
-                        },
-                    };
+                    let (dialog, task) = Self::load_or_create_vault(vault_path)?;
+                    self.dialog = dialog;
+                    return Ok((None, dialogs![], task));
                 }
             }
             Message::VaultSelected(v_name) => {

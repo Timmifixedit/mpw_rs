@@ -6,7 +6,7 @@ use crate::pages::passwords::Passwords;
 use crate::pages::vault_settings::VaultSettingsPage;
 use crate::pages::{passwords, vault_settings};
 use crate::util::vault_handler::VaultHandler;
-use crate::{dialogs, map_message, no_op};
+use crate::{dialogs, map_message, no_op, pages};
 use iced::widget::{button, column, container, opaque, space, stack};
 use iced::{Color, Element, Length, Task};
 use iced_aw::TabLabel;
@@ -28,6 +28,7 @@ pub enum Message {
     LockPressed,
     LockingFinished(Result<(), MessageDialog>),
     LockMessageDialog(dialogs::message::Message),
+    Focus(pages::login::Message),
 }
 
 pub struct VaultPage {
@@ -97,12 +98,8 @@ impl VaultPage {
     }
 
     fn back_to_login(&self) -> PageMessage<Message> {
-        let (page, err) = LoginPage::new();
-        Ok((
-            Some(Page::Login(page)),
-            err.map_or(dialogs![], |e| e.into()),
-            Task::none(),
-        ))
+        let (page, err, task) = LoginPage::new();
+        Ok((Some(Page::Login(page)), err, task.map(Message::Focus)))
     }
 
     pub fn update(&mut self, message: Message) -> PageMessage<Message> {
@@ -163,6 +160,7 @@ impl VaultPage {
                     no_op!()
                 }
             }
+            Message::Focus(_) => no_op!()
         }
     }
 

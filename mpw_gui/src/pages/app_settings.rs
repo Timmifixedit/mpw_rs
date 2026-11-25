@@ -7,7 +7,7 @@ use crate::dialogs::confirmation::{ConfirmationDialog, DialogResult};
 use crate::dialogs::message::{MessageDialog, MessageType};
 use crate::pages::login::LoginPage;
 use crate::pages::page::{Page, PageMessage};
-use crate::{dialogs, no_op};
+use crate::{dialogs, no_op, pages};
 use iced::Element;
 use iced::Task;
 use iced::widget::{button, column, container, row, space, text_input};
@@ -17,7 +17,7 @@ use mpw_core::path_manager::PathManager;
 use std::path::Path;
 use std::sync::{Arc, Mutex, RwLock};
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum Message {
     AddPressed,
     RemovePressed,
@@ -26,6 +26,7 @@ pub enum Message {
     DetailView(vault_details::Message),
     SaveCompleted(Result<(), MessageDialog>),
     ClosePressed,
+    Focus(pages::login::Message),
 }
 
 pub struct AppSettingsPage {
@@ -134,12 +135,8 @@ impl AppSettingsPage {
                 }
             }
             Message::ClosePressed => {
-                let (page, error) = LoginPage::new();
-                return Ok((
-                    Some(Page::Login(page)),
-                    error.map_or(dialogs![], |d| d.into()),
-                    Task::none(),
-                ));
+                let (page, error, task) = LoginPage::new();
+                return Ok((Some(Page::Login(page)), error, task.map(Message::Focus)));
             }
             Message::DetailView(msg) => {
                 if self.vault_item_detail.update(msg) {
@@ -197,6 +194,7 @@ impl AppSettingsPage {
             Message::SearchChanged(search_string) => {
                 self.search_string = search_string;
             }
+            Message::Focus(_) => {}
         }
         no_op!()
     }
