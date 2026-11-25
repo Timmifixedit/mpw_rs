@@ -1,4 +1,4 @@
-use crate::controls::list_box::ListBox;
+use crate::controls::list_box::{ItemId, ListBox};
 use crate::controls::pw_details::PasswordDetails;
 use crate::controls::{list_box, pw_details};
 use crate::dialogs::base::DialogStack;
@@ -10,7 +10,7 @@ use crate::{dialogs, no_op};
 use iced::widget::{button, container, row, space, text_input};
 use iced::{Alignment, Element, Length, Task};
 use mpw_core::path_manager::Search;
-use mpw_core::vault::Vault;
+use secure_string::SecureString;
 
 #[derive(Clone)]
 pub enum Message {
@@ -19,6 +19,9 @@ pub enum Message {
     SearchChanged(String),
     ListBox(list_box::Message),
     PwInfo(pw_details::Message),
+    PwRetrieved(Result<(String, SecureString, Option<String>), MessageDialog>),
+    PwUpdated(Result<(ItemId, String), MessageDialog>),
+    PwDeleted(Result<(), MessageDialog>),
 }
 
 #[derive(Debug, Clone)]
@@ -40,6 +43,7 @@ impl Passwords {
     pub fn new(vault_handler: VaultHandler) -> (Self, Option<MessageDialog>) {
         let (pw_list, message) =
             match vault_handler.blocking_operation(|v| v.list_passwords(Search::None)) {
+                // TODO can we not block?
                 Ok(pws) => (pws, None),
                 Err(err) => (
                     vec![],
@@ -110,22 +114,24 @@ impl Passwords {
                     if name == "" {
                         self.pw_info.update_info("".into(), "".into(), "".into());
                     } else {
-                        let (pw, login) = self
-                            .vault_handler
-                            .blocking_operation(|v| v.retrieve_password(name))?;
-                        self.pw_info
-                            .update_info(name.clone(), pw, login.unwrap_or_default());
+                        return Ok((None, dialogs![], self.spawn_retrieve_pw_task(name.clone())));
                     }
                 }
             }
+            Message::PwRetrieved(res) => {
+                let (name, pw, login) = res?;
+                self.pw_info
+                    .update_info(name, pw, login.unwrap_or_default());
+            }
             Message::PwInfo(msg) => {
                 let (pw_updated, task) = self.pw_info.update(msg);
+                let mut task = task.map(Message::PwInfo);
                 let mut dialog = DialogStack::default();
                 if pw_updated {
                     if let Some((_, name)) = self.pw_list.selected_item()
                         && name == ""
                     {
-                        self.update_pw()?;
+                        task = task.chain(self.spawn_update_pw_task());
                     } else {
                         self.confirmation_action = ConfirmedAction::Update;
                         dialog.push(
@@ -138,7 +144,11 @@ impl Passwords {
                     }
                 }
 
-                return Ok((None, dialog, task.map(Message::PwInfo)));
+                return Ok((None, dialog, task));
+            }
+            Message::PwUpdated(res) => {
+                let (id, new_name) = res?;
+                self.pw_list.update_entry(id, new_name);
             }
             Message::AddPressed => {
                 let added = self.pw_list.add_item("".into());
@@ -159,41 +169,60 @@ impl Passwords {
                     }
                 }
             }
+            Message::PwDeleted(res) => {
+                res?;
+            }
         }
         no_op!()
     }
 
-    fn update_pw(&mut self) -> Result<(), MessageDialog> {
-        let (id, orig_name) = self.pw_list.selected_item().expect("No selected item");
-        let is_new_pw = orig_name == "";
-        let new_name = self.pw_info.get_name();
-        if orig_name != new_name && !is_new_pw {
-            self.vault_handler
-                .blocking_operation(|v| v.rename_password(orig_name, new_name))?;
-        }
+    fn spawn_retrieve_pw_task(&self, name: String) -> Task<Message> {
+        self.vault_handler.run_task(
+            move |v| {
+                let (pw, login) = v.retrieve_password(&name)?;
+                Ok((name, pw, login))
+            },
+            Message::PwRetrieved,
+        )
+    }
 
-        let login = if self.pw_info.get_login() == "" {
+    fn spawn_update_pw_task(&self) -> Task<Message> {
+        let (id, orig_name) = self.pw_list.selected_item().expect("No selected item");
+        let orig_name = orig_name.to_string();
+        let is_new_pw = orig_name == "";
+        let new_name = self.pw_info.get_name().to_string();
+        let pw = self.pw_info.get_pw().clone();
+        let vault_handler = self.vault_handler.clone();
+        let login = if self.pw_info.get_login().is_empty() {
             None
         } else {
             Some(self.pw_info.get_login().to_string())
         };
-        self.vault_handler.blocking_operation(|v| {
-            v.write_password(new_name, self.pw_info.get_pw().clone(), login, !is_new_pw)
-        })?;
+        Task::perform(
+            async move {
+                if orig_name != new_name && !is_new_pw {
+                    vault_handler
+                        .run_async(|v| v.rename_password(&orig_name, &new_name))
+                        .await?;
+                }
 
-        if orig_name != new_name {
-            self.pw_list.update_entry(id, new_name.to_string());
-        }
-
-        Ok(())
+                vault_handler
+                    .run_async(|v| v.write_password(&new_name, pw, login, !is_new_pw))
+                    .await?;
+                Ok((id, new_name))
+            },
+            Message::PwUpdated,
+        )
     }
 
-    fn remove_pw(&mut self) -> Result<(), MessageDialog> {
+    fn spawn_remove_pw_task(&mut self) -> Task<Message> {
         let (id, name) = self.pw_list.selected_item().expect("No selected item");
-        self.vault_handler
-            .blocking_operation(|v| v.delete_password(name))?;
+        let name = name.clone();
         self.pw_list.remove_entry(id);
-        Ok(())
+        self.vault_handler.run_task(
+            move |v| v.delete_password(&name).map_err(|e| e.into()),
+            Message::PwDeleted,
+        )
     }
 
     pub fn handle_escape(&mut self) {
@@ -221,17 +250,17 @@ impl Passwords {
         ))
     }
 
-    pub fn react_to_dialog(&mut self, res: DialogResult) -> Result<(), MessageDialog> {
+    pub fn react_to_dialog(&mut self, res: DialogResult) -> Task<Message> {
         let action = self.confirmation_action.clone();
         self.confirmation_action = ConfirmedAction::None;
         if matches!(res, DialogResult::Yes) {
             match action {
-                ConfirmedAction::Update => return self.update_pw(),
-                ConfirmedAction::Remove => return self.remove_pw(),
+                ConfirmedAction::Update => return self.spawn_update_pw_task(),
+                ConfirmedAction::Remove => return self.spawn_remove_pw_task(),
                 ConfirmedAction::None => {}
             }
         }
 
-        Ok(())
+        Task::none()
     }
 }

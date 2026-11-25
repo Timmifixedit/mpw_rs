@@ -190,18 +190,15 @@ impl VaultPage {
         }
     }
 
-    pub fn react_to_dialog(
-        &mut self,
-        res: dialogs::confirmation::DialogResult,
-    ) -> Result<(), MessageDialog> {
+    pub fn react_to_dialog(&mut self, res: dialogs::confirmation::DialogResult) -> Task<Message> {
         match self.active_tab {
             Tab::Passwords => {
-                return self.pw_page.react_to_dialog(res);
+                return self.pw_page.react_to_dialog(res).map(Message::PwPage);
             }
             Tab::Files => {}
             Tab::Settings => {}
         }
 
-        Ok(())
+        Task::none()
     }
 }

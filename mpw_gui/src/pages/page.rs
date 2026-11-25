@@ -91,9 +91,10 @@ impl Page {
             Page::Settings(page) => page
                 .react_to_dialog(res)
                 .map(|_| (None, dialogs![], Task::none())),
-            Page::Vault(page) => page
-                .react_to_dialog(res)
-                .map(|_| (None, dialogs![], Task::none())),
+            Page::Vault(page) => {
+                let task = page.react_to_dialog(res).map(PageEvent::Vault);
+                Ok((None, dialogs![], task))
+            }
             _ => no_op!(),
         }
     }

@@ -56,6 +56,26 @@ impl VaultHandler {
         )
     }
 
+    pub async fn run_async<T>(&self, operation: impl FnOnce(&Vault) -> T) -> T {
+        let vault = self.vault.clone();
+        async move { operation(&vault.read().expect("vault lock poisoned")) }.await
+    }
+
+    pub async fn run_async_exclusive<T>(&self, operation: impl FnOnce(&Vault) -> T) -> T {
+        let vault = self.vault.clone();
+        let mutex = self.data_mutex.clone();
+        async move {
+            let _guard = mutex.lock().expect("data mutex poisoned");
+            operation(&vault.read().expect("vault lock poisoned"))
+        }
+        .await
+    }
+
+    pub async fn run_async_mut<T>(&mut self, operation: impl FnOnce(&mut Vault) -> T) -> T {
+        let vault = self.vault.clone();
+        async move { operation(&mut vault.write().expect("vault lock poisoned")) }.await
+    }
+
     pub fn blocking_operation<T>(&self, operation: impl FnOnce(&Vault) -> T) -> T {
         operation(&self.vault.read().expect("vault lock poisoned"))
     }
