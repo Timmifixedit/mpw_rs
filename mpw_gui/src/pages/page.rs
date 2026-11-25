@@ -88,9 +88,10 @@ impl Page {
 
     pub fn react_to_dialog(&mut self, res: dialogs::confirmation::DialogResult) -> PageResult {
         match self {
-            Page::Settings(page) => page
-                .react_to_dialog(res)
-                .map(|_| (None, dialogs![], Task::none())),
+            Page::Settings(page) => {
+                let task = page.react_to_dialog(res).map(PageEvent::Settings);
+                Ok((None, dialogs![], task))
+            }
             Page::Vault(page) => {
                 let task = page.react_to_dialog(res).map(PageEvent::Vault);
                 Ok((None, dialogs![], task))

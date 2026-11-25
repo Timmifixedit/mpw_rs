@@ -15,6 +15,7 @@ use iced::{Alignment, Length};
 use mpw_core::config::get_config_path;
 use mpw_core::path_manager::PathManager;
 use std::path::Path;
+use std::sync::{Arc, Mutex, RwLock};
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -23,11 +24,13 @@ pub enum Message {
     SearchChanged(String),
     ListBox(list_box::Message),
     DetailView(vault_details::Message),
+    SaveCompleted(Result<(), MessageDialog>),
     ClosePressed,
 }
 
 pub struct AppSettingsPage {
-    vault_entries: PathManager,
+    vault_entries: Arc<RwLock<PathManager>>,
+    config_file_mutex: Arc<Mutex<()>>,
     list_view: ListBox<String>,
     vault_item_detail: VaultDetailsView,
     search_string: String,
@@ -37,7 +40,8 @@ impl AppSettingsPage {
     pub fn new(vault_entries: PathManager) -> Self {
         let list_view = ListBox::new(vault_entries.names().map(|s| s.to_string()));
         Self {
-            vault_entries,
+            vault_entries: Arc::new(vault_entries.into()),
+            config_file_mutex: Arc::new(().into()),
             list_view,
             vault_item_detail: VaultDetailsView::new(),
             search_string: String::new(),
@@ -89,14 +93,24 @@ impl AppSettingsPage {
         .into()
     }
 
-    fn save_entries(&mut self) -> Result<(), MessageDialog> {
-        self.vault_entries
-            .save(
-                get_config_path()
+    fn save_entries(&mut self) -> Task<Message> {
+        let vault_entries = self.vault_entries.clone();
+        let mutex = self.config_file_mutex.clone();
+        Task::perform(
+            async move {
+                let path = get_config_path()
                     .map_err(|msg| MessageDialog::new(msg, MessageType::Error))?
-                    .as_path(),
-            )
-            .map_err(|err| MessageDialog::new(err.to_string(), MessageType::Error))
+                    .as_path()
+                    .to_owned();
+                let _guard = mutex.lock().expect("config file lock poisoned");
+                vault_entries
+                    .read()
+                    .expect("path manager lock poisoned")
+                    .save(&path)
+                    .map_err(|err| MessageDialog::new(err.to_string(), MessageType::Error))
+            },
+            Message::SaveCompleted,
+        )
     }
 
     pub fn update(&mut self, message: Message) -> PageMessage<Message> {
@@ -107,10 +121,15 @@ impl AppSettingsPage {
                     self.vault_item_detail.update_info(
                         name.clone(),
                         self.vault_entries
+                            .read()
+                            .expect("path manager lock poisoned")
                             .get(name)
                             .unwrap_or(Path::new(""))
                             .to_owned(),
-                        self.vault_entries.is_default(name),
+                        self.vault_entries
+                            .read()
+                            .expect("path manager lock poisoned")
+                            .is_default(name),
                     );
                 }
             }
@@ -127,21 +146,34 @@ impl AppSettingsPage {
                     let (id, orig_name) = self.list_view.selected_item().expect("No selected item");
                     if orig_name == self.vault_item_detail.get_name() {
                         self.vault_entries
+                            .write()
+                            .expect("path manager lock poisoned")
                             .update(orig_name, self.vault_item_detail.get_path().into())?;
                         self.vault_entries
+                            .write()
+                            .expect("path manager lock poisoned")
                             .update_default(orig_name, self.vault_item_detail.is_default())?;
                     } else {
-                        self.vault_entries.add(
-                            self.vault_item_detail.get_name().to_string(),
-                            self.vault_item_detail.get_path().into(),
-                            self.vault_item_detail.is_default(),
-                        )?;
-                        self.vault_entries.remove(orig_name);
+                        self.vault_entries
+                            .write()
+                            .expect("path manager lock poisoned")
+                            .add(
+                                self.vault_item_detail.get_name().to_string(),
+                                self.vault_item_detail.get_path().into(),
+                                self.vault_item_detail.is_default(),
+                            )?;
+                        self.vault_entries
+                            .write()
+                            .expect("path manager lock poisoned")
+                            .remove(orig_name);
                         self.list_view
                             .update_entry(id, self.vault_item_detail.get_name().to_string());
                     }
-                    self.save_entries()?;
+                    return Ok((None, dialogs![], self.save_entries()));
                 }
+            }
+            Message::SaveCompleted(res) => {
+                res?;
             }
             Message::AddPressed => {
                 let added = self.list_view.add_item("".into());
@@ -152,14 +184,14 @@ impl AppSettingsPage {
             }
             Message::RemovePressed => {
                 if let Some((id, name)) = self.list_view.selected_item() {
-                    if name == "" {
-                        self.remove_entry(id)?;
+                    return if name == "" {
+                        Ok((None, dialogs![], self.remove_entry(id)))
                     } else {
-                        return ConfirmationDialog::new_request(
+                        ConfirmationDialog::new_request(
                             format!("Remove vault entry '{name}'?").into(),
                             false,
-                        );
-                    }
+                        )
+                    };
                 }
             }
             Message::SearchChanged(search_string) => {
@@ -173,22 +205,33 @@ impl AppSettingsPage {
         self.list_view.unselect();
     }
 
-    fn remove_entry(&mut self, id: ItemId) -> Result<(), MessageDialog> {
+    fn remove_entry(&mut self, id: ItemId) -> Task<Message> {
+        let need_write = self
+            .list_view
+            .get_item(id)
+            .is_some_and(|name| !name.is_empty());
         if let Some(name) = self.list_view.get_item(id) {
-            self.vault_entries.remove(name);
+            self.vault_entries
+                .write()
+                .expect("path manager lock poisoned")
+                .remove(name);
         }
 
         self.list_view.remove_entry(id);
-        self.save_entries()
+        if need_write {
+            self.save_entries()
+        } else {
+            Task::none()
+        }
     }
 
-    pub fn react_to_dialog(&mut self, res: DialogResult) -> Result<(), MessageDialog> {
+    pub fn react_to_dialog(&mut self, res: DialogResult) -> Task<Message> {
         if matches!(res, DialogResult::Yes)
             && let Some((id, _)) = self.list_view.selected_item()
         {
             self.remove_entry(id)
         } else {
-            Ok(())
+            Task::none()
         }
     }
 }
