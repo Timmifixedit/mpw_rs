@@ -126,7 +126,7 @@ impl VaultPage {
             Message::LockPressed => {
                 let lock_task = self.vault_handler.run_task_mut(
                     |v| v.lock().map_err(|e| e.into()),
-                    Some("lock"),
+                    Some("__vault_lock__"),
                     Message::LockingFinished,
                 );
                 self.shutting_down = true;
