@@ -127,9 +127,11 @@ impl VaultPage {
                 map_message!(self.settings_page.update(msg), Message::SettingsPage)
             }
             Message::LockPressed => {
-                let lock_task = self
-                    .vault_handler
-                    .run_task_mut(|v| v.lock().map_err(|e| e.into()), Message::LockingFinished);
+                let lock_task = self.vault_handler.run_task_mut(
+                    |v| v.lock().map_err(|e| e.into()),
+                    Some("lock"),
+                    Message::LockingFinished,
+                );
                 self.shutting_down = true;
                 self.pw_page.handle_shutdown();
                 Ok((

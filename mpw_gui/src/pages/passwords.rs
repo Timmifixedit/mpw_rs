@@ -177,11 +177,13 @@ impl Passwords {
     }
 
     fn spawn_retrieve_pw_task(&self, name: String) -> Task<Message> {
+        let name_copy = name.to_string();
         self.vault_handler.run_task(
             move |v| {
-                let (pw, login) = v.retrieve_password(&name)?;
-                Ok((name, pw, login))
+                let (pw, login) = v.retrieve_password(&name_copy)?;
+                Ok((name_copy, pw, login))
             },
+            Some(&name),
             Message::PwRetrieved,
         )
     }
@@ -202,12 +204,18 @@ impl Passwords {
             async move {
                 if orig_name != new_name && !is_new_pw {
                     vault_handler
-                        .run_async(|v| v.rename_password(&orig_name, &new_name))
+                        .run_async(
+                            |v| v.rename_password(&orig_name, &new_name),
+                            Some(&orig_name),
+                        )
                         .await?;
                 }
 
                 vault_handler
-                    .run_async(|v| v.write_password(&new_name, pw, login, !is_new_pw))
+                    .run_async(
+                        |v| v.write_password(&new_name, pw, login, !is_new_pw),
+                        Some(&new_name),
+                    )
                     .await?;
                 Ok((id, new_name))
             },
@@ -217,12 +225,14 @@ impl Passwords {
 
     fn spawn_remove_pw_task(&mut self) -> Task<Message> {
         let (id, name) = self.pw_list.selected_item().expect("No selected item");
-        let name = name.clone();
-        self.pw_list.remove_entry(id);
-        self.vault_handler.run_task(
-            move |v| v.delete_password(&name).map_err(|e| e.into()),
+        let name_clone = name.clone();
+        let task = self.vault_handler.run_task(
+            move |v| v.delete_password(&name_clone).map_err(|e| e.into()),
+            Some(&name),
             Message::PwDeleted,
-        )
+        );
+        self.pw_list.remove_entry(id);
+        task
     }
 
     pub fn handle_escape(&mut self) {

@@ -9,3 +9,4 @@ iced_aw = { version = "0.14.1", features = ["tabs"] }
 mpw_core = { path = "../mpw_core" }
 secure-string = "0.3.0"
 rfd = "0.18.0"
+dashmap = "7.0.0-rc2"
