@@ -6,12 +6,14 @@ use crate::pages::app_settings::AppSettingsPage;
 use crate::pages::page::{Page, PageMessage};
 use crate::pages::vault::VaultPage;
 use crate::{dialogs, no_op};
-use iced::widget::{button, container, pick_list, stack, text};
+use iced::widget::{button, container, pick_list, stack, svg, text};
 use iced::{Alignment, Element, Font, Length, Task};
 use mpw_core::config::get_config_path;
 use mpw_core::path_manager::PathManager;
 use mpw_core::vault::{FatalError, Vault, VaultError};
 use std::path::PathBuf;
+
+const LOGO: &[u8] = include_bytes!("../../assets/Logo.svg");
 
 #[derive(Clone)]
 enum DialogMessage {
@@ -77,9 +79,14 @@ impl LoginPage {
 
     pub fn view(&self) -> Element<'_, Message> {
         use iced::widget::{column, row, space};
-        let header = column![text("MyPW-GUI").size(48).font(Font::MONOSPACE),]
+        let header = container(
+            row![
+                text("MyPW-GUI").size(48).font(Font::MONOSPACE),
+                svg(svg::Handle::from_memory(LOGO)).width(Length::Fixed(80.0))
+            ]
             .spacing(10)
-            .align_x(Alignment::Center);
+            .align_y(Alignment::Center),
+        );
 
         let vaults = self.vault_entries.names().collect::<Vec<_>>();
         let drop_down = pick_list(vaults, self.selected_vault.as_ref(), |name| {
@@ -98,12 +105,15 @@ impl LoginPage {
             .width(Length::Fixed(100.0));
 
         let main_page = container(column![
-            container(column![
-                header,
-                space().height(Length::FillPortion(1)),
-                controls,
-                space().height(Length::FillPortion(1)),
-            ])
+            container(
+                column![
+                    header,
+                    space().height(Length::FillPortion(1)),
+                    controls,
+                    space().height(Length::FillPortion(1)),
+                ]
+                .align_x(Alignment::Center)
+            )
             .width(Length::Fill)
             .align_x(Alignment::Center),
             container(settings)
