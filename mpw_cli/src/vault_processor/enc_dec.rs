@@ -45,9 +45,9 @@ impl<'v> Completer for EncDecCompleter<'v> {
                 s,
                 c.into_iter()
                     .filter(|s| {
-                        self.decryption
-                            == (PathBuf::from(s).is_dir()
-                                || PathBuf::from(s).extension().is_some_and(|e| e == FE))
+                        PathBuf::from(s).is_dir()
+                            || self.decryption
+                                == (PathBuf::from(s).extension().is_some_and(|e| e == FE))
                     })
                     .collect(),
             )
@@ -120,8 +120,7 @@ pub fn print_error(err: VaultErrorStack, verbose: Verbosity) {
                 }
             },
 
-            VaultError::IoError(_)
-            | VaultError::CoreError(_) => {
+            VaultError::IoError(_) | VaultError::CoreError(_) => {
                 if verbose >= Verbosity::Normal {
                     println!("{e}");
                 }
