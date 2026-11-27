@@ -15,6 +15,7 @@ const VAULT_FILE: &'static str = constcat::concat!("Vault", ".", VLT_EXTENSION);
 const PW_EXTENSION: &'static str = "pwEnc";
 const LOGIN_EXTENSION: &'static str = "lgEnc";
 pub const FILE_EXTENSION: &'static str = "enc";
+pub const TMP_EXTENSION: &'static str = "enc_tmp";
 const FILE_LIST: &'static str = constcat::concat!("EncryptedFiles", ".", VLT_EXTENSION);
 
 #[derive(thiserror::Error, Debug)]
@@ -138,25 +139,28 @@ fn assert_valid_name(pw_name: &str) -> Result<(), VaultError> {
     Ok(())
 }
 
-fn encrypted_file_path(file_path: &Path) -> PathBuf {
+fn encrypted_file_path(file_path: &Path) -> (PathBuf, PathBuf) {
     if file_path.is_dir()
         || file_path
             .extension()
             .is_some_and(|e| e.to_string_lossy() == FILE_EXTENSION)
     {
-        return file_path.to_path_buf();
+        return (
+            file_path.to_path_buf(),
+            file_path.with_extension(TMP_EXTENSION),
+        );
     }
 
-    file_path.with_extension(
-        file_path
-            .extension()
-            .map_or_else(|| "".into(), |e| e.to_string_lossy().to_string() + ".")
-            + FILE_EXTENSION,
+    (
+        file_path.with_added_extension(FILE_EXTENSION),
+        file_path.with_added_extension(TMP_EXTENSION),
     )
 }
 
 fn try_get_file_to_decrypt(file_path: &Path) -> VaultResult<PathBuf> {
-    let encrypted = encrypted_file_path(file_path);
+    let (encrypted, _) = encrypted_file_path(file_path);
+    println!("path: {:?}", file_path);
+    println!("encrypted: {:?}", encrypted);
     if file_path.exists() && !encrypted.exists() {
         return Err(EncryptionNoOp::NotEncrypted(file_path.to_string_lossy().to_string()).into());
     }
@@ -476,7 +480,7 @@ impl Vault {
             );
         }
 
-        let dest_path = encrypted_file_path(file_path);
+        let (dest_path, tmp_path) = encrypted_file_path(file_path);
         if dest_path.exists() {
             return Err(IO::new(
                 EK::AlreadyExists,
@@ -488,7 +492,7 @@ impl Vault {
             .into());
         }
 
-        let mut encrypted = std::fs::File::create(dest_path)?;
+        let mut encrypted = std::fs::File::create(&tmp_path)?;
         let src = std::fs::OpenOptions::new()
             .read(true)
             .write(true)
@@ -499,6 +503,8 @@ impl Vault {
         let header: Vec<u8> = header.into();
         encrypted.write_all(header.as_slice())?;
         cryptography::crypto_write(src, &mut encrypted, &key, &iv)?;
+        encrypted.sync_all()?;
+        std::fs::rename(tmp_path, dest_path)?;
         std::fs::remove_file(file_path)?;
         Ok(())
     }
@@ -521,6 +527,7 @@ impl Vault {
         }
 
         let dest_path = file_path.with_extension("");
+        let tmp_path = file_path.with_extension(TMP_EXTENSION);
         if dest_path.exists() {
             return Err(IO::new(
                 EK::AlreadyExists,
@@ -537,8 +544,10 @@ impl Vault {
         let file_key =
             cryptography::decrypt_file_header(&header, &self.master_key.as_ref().unwrap())?;
         src.seek(std::io::SeekFrom::Start(header.data_offset() as u64))?;
-        let mut dest = std::fs::File::create(dest_path)?;
+        let mut dest = std::fs::File::create(&tmp_path)?;
         cryptography::crypto_read(src, &mut dest, &file_key, &header.iv)?;
+        dest.sync_all()?;
+        std::fs::rename(tmp_path, dest_path)?;
         std::fs::remove_file(file_path)?;
         Ok(())
     }
@@ -653,7 +662,7 @@ impl Vault {
         if entry.is_dir() {
             self.encrypt_directory(entry)?;
         } else {
-            if !entry.exists() && encrypted_file_path(&entry).exists() {
+            if !entry.exists() && encrypted_file_path(&entry).0.exists() {
                 return Err(VaultError::ItemSkipped(EncryptionNoOp::AlreadyEncrypted(
                     entry.to_string_lossy().to_string(),
                 ))
