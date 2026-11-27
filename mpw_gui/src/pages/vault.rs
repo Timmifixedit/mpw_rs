@@ -124,7 +124,7 @@ impl VaultPage {
                 map_message!(self.settings_page.update(msg), Message::SettingsPage)
             }
             Message::LockPressed => {
-                let lock_task = self.vault_handler.run_task_mut(
+                let lock_task = self.vault_handler.run_heavy_task_mut(
                     |v| v.lock().map_err(|e| e.into()),
                     Some("__vault_lock__"),
                     Message::LockingFinished,
@@ -160,7 +160,7 @@ impl VaultPage {
                     no_op!()
                 }
             }
-            Message::Focus(_) => no_op!()
+            Message::Focus(_) => no_op!(),
         }
     }
 

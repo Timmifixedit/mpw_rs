@@ -1,7 +1,16 @@
 use dashmap::DashMap;
 use iced::Task;
 use mpw_core::vault::Vault;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, LazyLock, Mutex, RwLock};
+use tokio::runtime::{Builder, Runtime};
+
+static TOKIO_RT: LazyLock<Runtime> = LazyLock::new(|| {
+    Builder::new_multi_thread()
+        .enable_all()
+        .thread_name("mpw-crypto-worker")
+        .build()
+        .expect("Failed to initialize Tokio runtime")
+});
 
 #[derive(Default)]
 struct ResourceHandler {
@@ -67,6 +76,30 @@ impl VaultHandler {
                     .as_ref()
                     .map(|mutex| Some(mutex.lock().expect("data mutex poisoned")));
                 operation(&mut vault.write().expect("vault lock poisoned"))
+            },
+            message,
+        )
+    }
+
+    pub fn run_heavy_task_mut<T: Send + 'static, M: Send + 'static>(
+        &self,
+        operation: impl FnOnce(&mut Vault) -> T + Send + 'static,
+        resource: Option<&str>,
+        message: impl FnOnce(T) -> M + Send + 'static,
+    ) -> Task<M> {
+        let vault = self.vault.clone();
+        let mutex = self.resource_handler.get_mutex(resource);
+        Task::perform(
+            async move {
+                TOKIO_RT
+                    .spawn_blocking(move || {
+                        let _guard = mutex
+                            .as_ref()
+                            .map(|mutex| Some(mutex.lock().expect("data mutex poisoned")));
+                        operation(&mut vault.write().expect("vault lock poisoned"))
+                    })
+                    .await
+                    .expect("background task failed")
             },
             message,
         )
