@@ -97,7 +97,13 @@ fn run() -> Result<(), AppError> {
             use std::io::Write;
             std::io::stdout().flush().expect("Failed to flush stdout");
 
-            let result = rpassword::read_password().map_err(|e| ReadlineError::Io(e));
+            let result = rpassword::read_password().map_err(|e| {
+                if let std::io::ErrorKind::Interrupted = e.kind() {
+                    ReadlineError::Interrupted
+                } else {
+                    ReadlineError::Io(e)
+                }
+            });
 
             // Check if Ctrl-C was pressed during password input
             if interrupted.load(Ordering::SeqCst) {
