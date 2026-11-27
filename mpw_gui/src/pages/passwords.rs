@@ -22,6 +22,7 @@ pub enum Message {
     PwRetrieved(Result<(String, SecureString, Option<String>), MessageDialog>),
     PwUpdated(Result<(ItemId, String), MessageDialog>),
     PwDeleted(Result<(), MessageDialog>),
+    PwListRetrieved(Result<Vec<String>, MessageDialog>),
 }
 
 #[derive(Debug, Clone)]
@@ -40,25 +41,25 @@ pub struct Passwords {
 }
 
 impl Passwords {
-    pub fn new(vault_handler: VaultHandler) -> (Self, Option<MessageDialog>) {
-        let (pw_list, message) =
-            match vault_handler.blocking_operation(|v| v.list_passwords(Search::None)) {
-                // TODO can we not block?
-                Ok(pws) => (pws, None),
-                Err(err) => (
-                    vec![],
-                    Some(MessageDialog::new(err.to_string(), MessageType::Error)),
-                ),
-            };
+    pub fn new(vault_handler: VaultHandler) -> (Self, Task<Result<Vec<String>, MessageDialog>>) {
+        let task = vault_handler.run_task(
+            |v| {
+                v.list_passwords(Search::None)
+                    .map(|v| v.into())
+                    .map_err(|e| e.into())
+            },
+            None,
+            |res| res,
+        );
         (
             Passwords {
                 vault_handler,
-                pw_list: ListBox::new(pw_list),
+                pw_list: ListBox::new(vec![]),
                 search_string: String::new(),
                 pw_info: PasswordDetails::new(),
                 confirmation_action: ConfirmedAction::None,
             },
-            message,
+            task,
         )
     }
 
@@ -171,6 +172,9 @@ impl Passwords {
             }
             Message::PwDeleted(res) => {
                 res?;
+            }
+            Message::PwListRetrieved(res) => {
+                self.pw_list.set_content(res?);
             }
         }
         no_op!()

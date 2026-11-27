@@ -4,7 +4,7 @@ use crate::dialogs::message::MessageDialog;
 use crate::pages::app_settings::AppSettingsPage;
 use crate::pages::login::LoginPage;
 use crate::pages::vault::VaultPage;
-use crate::pages::{app_settings, login, vault};
+use crate::pages::{app_settings, login, passwords, vault};
 use iced::{Element, Task};
 
 #[macro_export]
@@ -64,7 +64,17 @@ impl Page {
             (Page::Settings(page), PageEvent::Settings(msg)) => {
                 map_message!(page.update(msg), PageEvent::Settings)
             }
-
+            (Page::Vault(page), PageEvent::Login(msg)) => match msg {
+                login::Message::InitialPwList(m) => {
+                    map_message!(
+                        page.update(vault::Message::PwPage(passwords::Message::PwListRetrieved(
+                            m
+                        ))),
+                        PageEvent::Vault
+                    )
+                }
+                _ => no_op!(),
+            },
             _ => no_op!(),
         }
     }

@@ -41,9 +41,9 @@ pub struct VaultPage {
 }
 
 impl VaultPage {
-    pub fn new(vault: Vault) -> (Self, Option<MessageDialog>) {
+    pub fn new(vault: Vault) -> (Self, Task<Result<Vec<String>, MessageDialog>>) {
         let vault_handler = VaultHandler::new(vault);
-        let (pw_page, err) = Passwords::new(vault_handler.clone());
+        let (pw_page, task) = Passwords::new(vault_handler.clone());
         (
             Self {
                 active_tab: Tab::Passwords,
@@ -53,7 +53,7 @@ impl VaultPage {
                 shutting_down: false,
                 shutdown_message: None,
             },
-            err,
+            task,
         )
     }
 

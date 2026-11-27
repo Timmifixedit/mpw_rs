@@ -27,6 +27,7 @@ pub enum Message {
     SettingsPressed,
     VaultSelected(String),
     DialogMessage(DialogMessage),
+    InitialPwList(Result<Vec<String>, MessageDialog>),
 }
 
 enum Dialog {
@@ -177,11 +178,11 @@ impl LoginPage {
                         if let Dialog::Login((_, unlocked_vault)) =
                             std::mem::replace(&mut self.dialog, Dialog::None)
                         {
-                            let (page, err) = VaultPage::new(unlocked_vault);
+                            let (page, task) = VaultPage::new(unlocked_vault);
                             return Ok((
                                 Page::Vault(page).into(),
-                                err.map_or(dialogs![], |d| d.into()),
-                                Task::none(),
+                                dialogs![],
+                                task.map(Message::InitialPwList),
                             ));
                         }
                     }
@@ -201,11 +202,11 @@ impl LoginPage {
                             let pw = d.take_password();
                             let mut vault = Vault::new(vault_path, pw.clone())?;
                             vault.unlock(pw)?;
-                            let (page, err) = VaultPage::new(vault);
+                            let (page, task) = VaultPage::new(vault);
                             return Ok((
                                 Page::Vault(page).into(),
-                                err.map_or(dialogs![], |d| d.into()),
-                                Task::none(),
+                                dialogs![],
+                                task.map(Message::InitialPwList),
                             ));
                         }
                     }
@@ -271,6 +272,7 @@ impl LoginPage {
                     Task::none(),
                 ));
             }
+            Message::InitialPwList(_) => {}
         }
 
         no_op!()

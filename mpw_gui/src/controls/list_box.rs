@@ -27,17 +27,13 @@ pub struct ListBox<T: AsRef<str>> {
 
 impl<T: AsRef<str>> ListBox<T> {
     pub fn new(data_source: impl IntoIterator<Item = T>) -> Self {
-        let items =
-            HashMap::from_iter(data_source.into_iter().map(|item| (ItemId::unique(), item)));
-        let display_items = items
-            .iter()
-            .map(|(&id, item)| (item.as_ref().to_string(), id))
-            .collect::<BTreeSet<_>>();
-        Self {
-            items,
-            display_items,
+        let mut ret = Self {
+            items: HashMap::new(),
+            display_items: BTreeSet::new(),
             selected: None,
-        }
+        };
+        ret.set_content(data_source);
+        ret
     }
 
     pub fn view<F: Fn(&str) -> bool>(&self, filter: Option<F>) -> Element<'_, Message> {
@@ -89,6 +85,16 @@ impl<T: AsRef<str>> ListBox<T> {
         let new_id = ItemId::unique();
         self.update_entry(new_id, item);
         new_id
+    }
+
+    pub fn set_content(&mut self, items: impl IntoIterator<Item = T>) {
+        let items = HashMap::from_iter(items.into_iter().map(|item| (ItemId::unique(), item)));
+        let display_items = items
+            .iter()
+            .map(|(&id, item)| (item.as_ref().to_string(), id))
+            .collect::<BTreeSet<_>>();
+        self.items = items;
+        self.display_items = display_items;
     }
 
     pub fn remove_entry(&mut self, id: ItemId) {
