@@ -177,13 +177,12 @@ impl Passwords {
     }
 
     fn spawn_retrieve_pw_task(&self, name: String) -> Task<Message> {
-        let name_copy = name.to_string();
         self.vault_handler.run_task(
             move |v| {
-                let (pw, login) = v.retrieve_password(&name_copy)?;
-                Ok((name_copy, pw, login))
+                let (pw, login) = v.retrieve_password(&name)?;
+                Ok((name, pw, login))
             },
-            Some(&name),
+            None,
             Message::PwRetrieved,
         )
     }
