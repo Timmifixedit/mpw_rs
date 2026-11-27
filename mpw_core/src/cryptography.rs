@@ -768,7 +768,8 @@ where
     let (mut source, source_size) = io::transfer_data(source, &mut cs)?;
     source.seek(Start(0))?;
     let mut bw_source = BufWriter::new(source);
-    bw_source.write_all(&vec![0u8; source_size])?;
+    let mut zeros = std::io::repeat(0u8).take(source_size as u64);
+    std::io::copy(&mut zeros, &mut bw_source)?;
     bw_source.flush()?;
     cs.finish()?;
     Ok(())
