@@ -767,7 +767,7 @@ where
     let mut cs = Encryptor::new(dest, Cipher::aes_256_cbc(), key.unsecure(), iv)?;
     let (mut source, source_size) = io::transfer_data(source, &mut cs)?;
     source.seek(Start(0))?;
-    let mut bw_source = BufWriter::new(source);
+    let mut bw_source = BufWriter::with_capacity(io::BUFFER_SIZE, source);
     let mut zeros = std::io::repeat(0u8).take(source_size as u64);
     std::io::copy(&mut zeros, &mut bw_source)?;
     bw_source.flush()?;

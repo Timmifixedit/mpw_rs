@@ -1,8 +1,9 @@
 use crate::error;
-use secure_string::SecureVec;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Read, Seek, Write};
 use std::path::Path;
+
+pub const BUFFER_SIZE: usize = 64 * 1024;
 
 /// Reads the exact number of specified bytes from the given offset from a stream.
 /// # Parameters
@@ -57,24 +58,11 @@ pub fn transfer_data<Source: Read, Dest: Write>(
     source: Source,
     dest: &mut Dest,
 ) -> error::Result<(Source, usize)> {
-    let mut b_source = BufReader::new(source);
-    let mut b_dest = BufWriter::new(dest);
-
-    let mut num_read_total = 0usize;
-    let mut num_read: usize;
-    let mut buf = SecureVec::new(vec![0u8; b_source.capacity()]);
-    loop {
-        num_read = b_source.read(&mut buf.unsecure_mut()).unwrap_or_default();
-        num_read_total += num_read;
-        if num_read == 0 {
-            break;
-        }
-
-        b_dest.write_all(&buf.unsecure()[..num_read])?;
-    }
-
+    let mut b_source = BufReader::with_capacity(BUFFER_SIZE, source);
+    let mut b_dest = BufWriter::with_capacity(BUFFER_SIZE, dest);
+    let num_read = std::io::copy(&mut b_source, &mut b_dest)?;
     b_dest.flush()?;
-    Ok((b_source.into_inner(), num_read_total))
+    Ok((b_source.into_inner(), num_read as usize))
 }
 
 #[cfg(test)]
